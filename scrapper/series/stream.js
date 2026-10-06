@@ -12,6 +12,17 @@ async function streamSeries(idSeries) {
             }
         });
         const $ = cheerio.load(response.data);
+        // Guard: halaman episode kadang berupa halaman redirect ke nontondrama (bukan halaman player)
+        const pageText = $("#movie-detail").text() || "";
+        if (/dialihkan ke|nontondrama/i.test(pageText) || /dialihkan ke/i.test($("title").text() || "")) {
+            return {
+                slug: idSeries,
+                title: null,
+                redirect_page: true,
+                image: null, status: "N/A", bintang_film: "N/A", quality: "N/A",
+                genres: "N/A", diterbitkan: "N/A", synopsis: null, stream: []
+            };
+        }
         const title = $("#movie-detail blockquote > a").text().trim() || "N/A";
         const image = $("#movie-detail > div > div.col-xs-3.content-poster > figure > picture > img").attr("src") || null;
         const quality = $("#movie-detail .content h3").eq(1).text().trim() || "N/A";

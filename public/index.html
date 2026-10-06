@@ -537,6 +537,10 @@ async function openDetail(slug){
   try{
     let m={}, eps=[], isSeries=false;
     try{ const j=await jget(`/movies/${slug}/stream`); m=j.result||{}; }catch(e){}
+    // Guard: episode yang halaman sumbernya = halaman redirect (iklan nontondrama) → buang metadata-nya
+    if(m && (m.redirect_page || /dialihkan ke/i.test(String(m.title||'')+String(m.synopsis||'')))){
+      m={}; m.redirect_page=true;
+    }
     try{
       const js=await jget(`/series/${slug}/`); const r=js.result||{};
       if(r.episodes&&r.episodes.length){
