@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>CineZone — Nonton Film & Series Sub Indo</title>
 <meta name="theme-color" content="#0b0b0f">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#0b0b0f; --bg2:#141419; --card:#1a1a21; --card2:#20202a;
@@ -35,22 +38,36 @@ nav.solid{background:linear-gradient(180deg,rgba(11,11,15,.98),rgba(11,11,15,.92
 .navlinks span.on{color:#fff;font-weight:700}
 .spacer{flex:1}
 .sbox{display:flex;align-items:center;background:rgba(255,255,255,.09);border:1px solid var(--bord);border-radius:9px;padding:8px 12px;gap:8px;transition:all .25s;width:220px}
-.sbox:focus-within{background:rgba(255,255,255,.15);border-color:var(--acc);width:280px}
+.sbox:focus-within{background:rgba(255,255,255,.15);border-color:var(--acc)}
 .sbox input{background:none;border:none;outline:none;color:#fff;font-size:14px;width:100%;font-family:inherit}
 .sbox input::placeholder{color:#8a8a97}
 .sbox svg{width:16px;height:16px;color:#a8a8b5;flex-shrink:0}
 .ava{width:34px;height:34px;border-radius:8px;background:var(--grad);display:grid;place-items:center;font-weight:800;font-size:14px;flex-shrink:0;cursor:pointer}
 @media(max-width:900px){.navlinks{display:none}.sbox{width:100%;max-width:200px}.navin{gap:12px;padding:0 14px}}
 
+/* ===== ACCESSIBILITY (review Muse P1-4) ===== */
+:focus-visible{outline:2.5px solid var(--acc);outline-offset:2px;border-radius:6px}
+.mcard:focus-visible{transform:translateY(-7px)}
+@media(hover:none){
+  .nav-arrow{display:none}
+  .row-h .more{opacity:1}
+  .hovplay{opacity:0}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  html{scroll-behavior:auto}
+}
+
 /* ===== HERO ===== */
 .hero{position:relative;min-height:76vh;display:flex;align-items:flex-end;overflow:hidden;margin-bottom:-90px}
 .hero-bg{position:absolute;inset:0;z-index:0}
-.hero-bg img{width:100%;height:100%;object-fit:cover;filter:blur(26px) brightness(.5) saturate(1.35);transform:scale(1.18)}
+.hero-bg img{width:100%;height:100%;object-fit:cover;filter:blur(18px) brightness(.55) saturate(1.35);transform:scale(1.14)}
 .hero-vig{position:absolute;inset:0;z-index:1;background:
-  linear-gradient(90deg,rgba(11,11,15,.97) 0%,rgba(11,11,15,.85) 38%,rgba(11,11,15,.25) 68%,rgba(11,11,15,.75) 100%),
+  radial-gradient(120% 90% at 70% 10%,rgba(249,115,22,.10),transparent 55%),
+  linear-gradient(90deg,rgba(11,11,15,.97) 0%,rgba(11,11,15,.85) 38%,rgba(11,11,15,.3) 68%,rgba(11,11,15,.8) 100%),
   linear-gradient(0deg,var(--bg) 2%,transparent 45%)}
 .hero-in{position:relative;z-index:2;max-width:1500px;margin:0 auto;width:100%;padding:0 22px 150px;display:flex;align-items:flex-end;gap:34px}
-.hero-poster{width:210px;flex-shrink:0;border-radius:14px;overflow:hidden;box-shadow:var(--sh);display:none}
+.hero-poster{width:210px;flex-shrink:0;border-radius:14px;overflow:hidden;box-shadow:var(--sh)}
 .hero-poster img{width:100%;display:block}
 .hero-txt{max-width:640px}
 .hero-tag{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:800;letter-spacing:1.6px;color:var(--acc);margin-bottom:14px;text-transform:uppercase}
@@ -61,6 +78,10 @@ nav.solid{background:linear-gradient(180deg,rgba(11,11,15,.98),rgba(11,11,15,.92
 .pill{border:1px solid rgba(255,255,255,.35);border-radius:5px;padding:1.5px 7px;font-size:11px;font-weight:800}
 .pill.hd{border-color:#4ade80;color:#4ade80}
 .hero-syn{font-size:14.5px;line-height:1.65;color:#b9b9c6;max-width:560px;margin-bottom:22px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.hero-dots{display:flex;gap:7px;margin-top:4px}
+.hd{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.25);transition:all .25s;padding:0}
+.hd.on{background:var(--acc);transform:scale(1.25)}
+.hd:hover{background:rgba(255,255,255,.6)}
 .hero-btns{display:flex;gap:12px;flex-wrap:wrap}
 .btn-play{background:linear-gradient(135deg,#fff,#e6e6ee);color:#0b0b0f;font-weight:800;font-size:15.5px;padding:13px 30px;border-radius:9px;display:inline-flex;align-items:center;gap:9px;transition:transform .18s,box-shadow .18s}
 .btn-play:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(255,255,255,.22)}
@@ -69,7 +90,7 @@ nav.solid{background:linear-gradient(180deg,rgba(11,11,15,.98),rgba(11,11,15,.92
 @media(max-width:760px){
   .hero{min-height:62vh}
   .hero-in{padding-bottom:130px;flex-direction:column;align-items:flex-start;gap:20px}
-  .hero-poster{width:130px;display:block}
+  .hero-poster{width:130px}
   .hero-syn{-webkit-line-clamp:2;font-size:13.5px}
   .btn-play,.btn-info{padding:11px 22px;font-size:14.5px}
 }
@@ -101,7 +122,7 @@ nav.solid{background:linear-gradient(180deg,rgba(11,11,15,.98),rgba(11,11,15,.92
 .bdg{position:absolute;z-index:3;border-radius:6px;font-size:10.5px;font-weight:800;padding:2.5px 7px;backdrop-filter:blur(5px)}
 .bdg.r{top:8px;left:8px;background:rgba(0,0,0,.75);color:var(--gold)}
 .bdg.q{top:8px;right:8px;background:rgba(0,0,0,.75);color:#4ade80;font-size:9.5px;letter-spacing:.5px}
-.bdg.n{top:0;left:-10px;background:none;font-size:74px;font-weight:900;color:rgba(255,255,255,.28);-webkit-text-stroke:3px rgba(255,255,255,.55);line-height:1;padding:0;backdrop-filter:none}
+.bdg.n{top:6px;left:8px;background:none;font-size:56px;font-weight:900;color:rgba(255,255,255,.3);-webkit-text-stroke:2.5px rgba(255,255,255,.6);line-height:1;padding:0;backdrop-filter:none}
 .mcard .htxt{margin-top:8px;padding:0 2px}
 .mcard .htxt h3{font-size:12.8px;font-weight:700;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:33px}
 .mcard .htxt p{font-size:11px;color:var(--mut);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -182,7 +203,7 @@ footer b{color:var(--acc);font-weight:800}
 </head>
 <body>
 
-<nav id="nav">
+<header id="nav"><nav aria-label="Navigasi utama">
   <div class="navin">
     <div class="logo" onclick="go('home')">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm3 2v2h2V5H7zm8 0v2h2V5h-2zM7 19v2h2v-2H7zm8 0v2h2v-2h-2zM10 9.5v5l4.5-2.5L10 9.5z"/></svg>
@@ -191,14 +212,14 @@ footer b{color:var(--acc);font-weight:800}
     <div class="navlinks" id="navlinks"></div>
     <div class="spacer"></div>
     <div class="sbox">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-      <input id="q" placeholder="Cari film / series..." autocomplete="off">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" role="img" aria-label="Cari"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="q" placeholder="Cari film / series..." autocomplete="off" aria-label="Kolom pencarian">
     </div>
     <div class="ava">CZ</div>
   </div>
-</nav>
+</nav></header>
 
-<div id="view"></div>
+<main id="view"></main>
 <footer>By: <b>ZeinthHub Project</b> · Powered by LK21 Unofficial API</footer>
 
 <div id="modal"><div class="sheet" id="sheet"></div></div>
@@ -226,10 +247,10 @@ function skel(n){return Array.from({length:n}).map(()=>`<div class="skcard"><div
 
 /* ================= CARD ================= */
 function card(m,rank){
-  return `<div class="mcard" onclick="openDetail('${esc(m.slug)}')">
+  return `<div class="mcard" role="button" tabindex="0" aria-label="Buka detail ${esc(m.title)}" onclick="openDetail('${esc(m.slug)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetail('${esc(m.slug)}')}">
     <div class="pw">
       ${rank?`<span class="bdg n">${rank}</span>`:''}
-      <img loading="lazy" src="${img(m)}" onerror="this.onerror=null;this.src='${PLACE}'">
+      <img loading="lazy" decoding="async" alt="${esc(m.title)}" src="${img(m)}" onerror="this.onerror=null;this.src='${PLACE}'">
       ${rt(m)?`<span class="bdg r">★ ${rt(m)}</span>`:''}
       ${m.quality&&m.quality!=='N/A'?`<span class="bdg q">${esc(m.quality)}</span>`:''}
       <div class="hovplay"><div class="pb"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div></div>
@@ -268,7 +289,7 @@ function renderHero(){
   const m=heroList[heroI%heroList.length]||{};
   v.innerHTML=`
   <div class="hero">
-    <div class="hero-bg"><img src="${img(m)}" onerror="this.onerror=null;this.src='${PLACE}'"></div>
+    <div class="hero-bg"><img src="${img(m)}" alt="" onerror="this.onerror=null;this.src='${PLACE}'"></div>
     <div class="hero-vig"></div>
     <div class="hero-in">
       <div class="hero-poster"><img src="${img(m)}" onerror="this.onerror=null;this.src='${PLACE}'"></div>
@@ -287,6 +308,7 @@ function renderHero(){
           <button class="btn-play" onclick="openDetail('${esc(m.slug)}')"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Putar</button>
           <button class="btn-info" onclick="openDetail('${esc(m.slug)}')">ⓘ Info Selengkapnya</button>
         </div>
+        <div class="hero-dots" id="heroDots">${heroList.map((_,i)=>`<button class="hd${i===heroI%heroList.length?' on':''}" aria-label="Sorotan ${i+1}" onclick="setHero(${i})"></button>`).join('')}</div>
       </div>
     </div>
   </div>
@@ -299,9 +321,9 @@ function buildRows(){
     <div class="row">
       <div class="row-h"><h2>${r.title}</h2></div>
       <div class="wrap-scroll">
-        <div class="nav-arrow l" onclick="scrollRow(${i},-1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></div>
+        <div class="nav-arrow l" aria-label="Geser kiri" onclick="scrollRow(${i},-1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></div>
         <div class="scroll" id="row-${i}">${skel(7)}</div>
-        <div class="nav-arrow r" onclick="scrollRow(${i},1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></div>
+        <div class="nav-arrow r" aria-label="Geser kanan" onclick="scrollRow(${i},1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></div>
       </div>
     </div>`).join('');
   ROWS.forEach(async (r,i)=>{
@@ -469,12 +491,21 @@ window.addEventListener('scroll',()=>{
 /* ================= INIT ================= */
 document.getElementById('navlinks').innerHTML=NAV.map(n=>`<span data-n="${n.id}" onclick="go('${n.id}')">${n.label}</span>`).join('');
 go('home');
-setInterval(()=>{
-  if(!heroList.length||curState.kind!=='home'||document.getElementById('modal').classList.contains('on'))return;
-  heroI++;
-  const m=heroList[heroI%heroList.length]; if(!m)return;
+/* ================= HERO ROTATION (safe: hidden tab / reduced-motion / modal) ================= */
+function setHero(i){
+  heroI=i; const m=heroList[heroI%heroList.length]; if(!m)return;
   const b=document.querySelector('.hero-bg img'), p=document.querySelector('.hero-poster img');
   if(b)b.src=img(m); if(p)p.src=img(m);
+  const h1=document.querySelector('.hero-txt h1'); if(h1)h1.textContent=m.title||'';
+  const sy=document.querySelector('.hero-syn'); if(sy)sy.textContent=m.synopsis||'Klik putar untuk mulai menonton.';
+  document.querySelectorAll('#heroDots .hd').forEach((d,j)=>d.classList.toggle('on',j===i));
+}
+setInterval(()=>{
+  if(!heroList.length||curState.kind!=='home')return;
+  if(document.getElementById('modal').classList.contains('on'))return;
+  if(document.hidden)return;
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  setHero((heroI+1)%heroList.length);
 },9000);
 </script>
 </body>
