@@ -1,11 +1,12 @@
 const axios = require("axios");
+const { ambil } = require("../fetcher");
 const cheerio = require("cheerio");
 require("dotenv").config();
 
 async function streamSeries(idSeries) {
     try{
         const url = `${process.env.LK21_BASE_SERIES}${idSeries}`;
-        const response = await axios.get(url, {
+        const response = await ambil(url, {
             headers: {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
             }
