@@ -188,6 +188,7 @@ async function playMovie(slug){
   try{
     const j = await jget(`/movies/${slug}/play`);
     const v = document.getElementById('vid');
+    st.textContent = '🎬 ' + (j.title || '');
     st.textContent = '';
     if (hlsInst) { hlsInst.destroy(); hlsInst=null; }
     if (v.canPlayType('application/vnd.apple.mpegurl')) {
