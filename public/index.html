@@ -75,7 +75,7 @@ const TABS = [
 ];
 let tab='latest', page=1, searchMode=false;
 
-function esc(s){return (s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}
+function esc(s){return String(s ?? '').replace(/[<>&\"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','\"':'&quot;'}[c]))}[c]))}
 
 async function jget(u){
   const r = await fetch(API+u);
@@ -87,7 +87,7 @@ function cards(items){
   return items.map(m=>`
   <div class="card" onclick="openDetail('${esc(m.slug)}')">
     <div class="poster">
-      <img loading="lazy" src="${esc(m.images)}" onerror="this.style.display='none'">
+      <img loading="lazy" src="${esc(m.images)}" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22140%22 height=%22210%22%3E%3Crect width=%22100%25%22 height=%22100%25%22 fill=%22%231c2233%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 fill=%22%238b93a7%22 text-anchor=%22middle%22 font-size=%2240%22%3E%F0%9F%8E%AC%3C/text%3E%3C/svg%3E'">
       ${m.rating&&m.rating!=='N/A'?`<span class="badge rate">★ ${esc(m.rating)}</span>`:''}
       ${m.quality&&m.quality!=='N/A'?`<span class="badge qual">${esc(m.quality)}</span>`:''}
     </div>
