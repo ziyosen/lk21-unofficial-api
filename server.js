@@ -101,7 +101,20 @@ app.get("/movies/:slug/play", async (req, res) => {
 });
 
 // Proxy HLS: rewrite playlist agar segmen lewat kita juga
+const rlMap = new Map(); // ip -> {count, reset}
+function rateLimit(req, res, max, windowMs) {
+    const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+    const now = Date.now();
+    let e = rlMap.get(ip);
+    if (!e || now > e.reset) { e = { count: 0, reset: now + windowMs }; rlMap.set(ip, e); }
+    e.count++;
+    if (rlMap.size > 5000) rlMap.clear(); // jaga memori
+    if (e.count > max) { res.status(429).end("Terlalu banyak request, tunggu sebentar."); return false; }
+    return true;
+}
+
 app.get("/hls", async (req, res) => {
+    if (!rateLimit(req, res, 900, 60000)) return;
     const u = req.query.u;
     if (!u || !/^https?:\/\//.test(u)) return res.status(400).end("bad url");
     try {
