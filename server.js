@@ -42,8 +42,11 @@ if (process.env.NODE_ENV !== "production") {
     app.use(morgan("dev"));
 }
 
-// Routes
-app.get("/", (_, res) => {
+// Front end statis
+app.use(express.static(__dirname + "/public"));
+
+// API root
+app.get("/api", (_, res) => {
     res.json({
         status: true,
         developers: Developers,
@@ -223,9 +226,6 @@ app.get("/series/:slug/", async (req, res) => {
         res.status(500).json({ status: false, developers: Developers, message: err.message });
     }
 });
-
-// Front end statis
-app.use(express.static(__dirname + "/public"));
 
 // Start server
 app.listen(PORT, () => {
