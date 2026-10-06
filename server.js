@@ -66,10 +66,11 @@ app.get("/movies/:slug/stream", async (req, res) => {
 app.get("/search", async (req, res) => {
     try {
         const query = req.query.s;
+        const page = parseInt(req.query.page) || 1;
         if (!query) return res.status(400).json({ status: false, developers: Developers, message: "Missing search query (?s=)" });
 
-        const movies = await searchMovie(query);
-        res.json({ status: true, developers: Developers, results: movies });
+        const { results, total_pages } = await searchMovie(query, page);
+        res.json({ status: true, developers: Developers, current_page: page, total_pages, results });
     } catch (err) {
         res.status(500).json({ status: false, developers: Developers, message: err.message });
     }

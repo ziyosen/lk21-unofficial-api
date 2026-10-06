@@ -47,6 +47,8 @@ function curlOnce(url, proxy) {
             "-w", "\n__CURL_CODE__%{http_code}",
             "-H", "User-Agent: " + UA,
             "-H", "Accept-Language: id-ID,id;q=0.9,en;q=0.8",
+            "-H", "X-Requested-With: XMLHttpRequest",
+            "-H", "Referer: https://tv12.lk21official.cc/",
         ];
         if (proxy) args.unshift("-x", proxy);
         args.push(url);
