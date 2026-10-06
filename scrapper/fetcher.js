@@ -1,13 +1,17 @@
 const { execFile } = require("child_process");
 require("dotenv").config();
 
-/* ==== FETCHER Cloudflare-aware (berbasis curl) ====
-   IP server/Vercel diblokir Cloudflare lk21. Solusi: rotasi proxy.
-   Kita pakai curl (bukan axios) karena curl handal menangani CONNECT
-   https lewat proxy publik dan redirect http<->https. */
+/* ==== FETCHER Cloudflare-aware (curl + RACE paralel) ====
+   IP server/Vercel diblokir Cloudflare lk21 → wajib lewat proxy residensial.
+   Pendekatan lama: mencoba proxy SATU-SATU (25s per proxy) → request bisa
+   >100s dan mati di batas waktu Vercel.
+   Solusi: RACE — semua jalur (direct + beberapa proxy) ditembak BERSAMAAN
+   dengan timeout pendek; yang pertama sukses (HTTP 200, bukan halaman
+   challenge) langsung dipakai, sisanya dibiarkan. Hasilnya <15s. */
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
-const TIMEOUT_MS = parseInt(process.env.FETCH_TIMEOUT_MS || "25000", 10);
+const TIMEOUT_MS = parseInt(process.env.FETCH_TIMEOUT_MS || "12000", 10);
+const MAKS_BERSAMAAN = parseInt(process.env.FETCH_MAKS_BERSAMAAN || "12", 10);
 
 let daftarProxy = [];
 try {
@@ -17,19 +21,24 @@ try {
         daftarProxy = require("fs").readFileSync(process.env.PROXY_FILE, "utf8")
             .split("\n").map(s => s.trim()).filter(Boolean);
     }
-} catch (e) { /* daftar kosong */ }
+} catch (e) { daftarProxy = []; }
 
-let proxyAktif = null;
-let indeks = 0;
-
-function proxyBerikut() {
-    if (!daftarProxy.length) return null;
-    const p = daftarProxy[indeks % daftarProxy.length];
-    indeks++;
-    return p;
+/* Urutkan acak supaya tiap request mencoba kombinasi proxy berbeda */
+function acak(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
 }
 
-/* curl 1x -> { status, body } | throw */
+function isChallenge(body) {
+    const cek = (body || "").slice(0, 3000);
+    return /just a moment|tunggu sebentar|cf-chl|challenge-platform/i.test(cek);
+}
+
+/* curl 1x → { status, body } */
 function curlOnce(url, proxy) {
     return new Promise((resolve, reject) => {
         const args = [
@@ -38,53 +47,70 @@ function curlOnce(url, proxy) {
             "-w", "\n__CURL_CODE__%{http_code}",
             "-H", "User-Agent: " + UA,
             "-H", "Accept-Language: id-ID,id;q=0.9,en;q=0.8",
-            url
         ];
         if (proxy) args.unshift("-x", proxy);
-        execFile("curl", args, { maxBuffer: 20 * 1024 * 1024, timeout: TIMEOUT_MS + 5000 }, (err, stdout, stderr) => {
+        args.push(url);
+        execFile("curl", args, { maxBuffer: 20 * 1024 * 1024, timeout: TIMEOUT_MS + 3000 }, (err, stdout) => {
             if (err && !stdout) return reject(err);
-            const idx = stdout.lastIndexOf("\n__CURL_CODE__");
+            const idx = stdout.lastIndexOf("__CURL_CODE__");
             if (idx < 0) return reject(new Error("curl: output tidak terbaca"));
-            const status = parseInt(stdout.slice(idx + 15).trim(), 10);
-            const body = stdout.slice(0, idx);
+            const m = /(\d{3})\s*$/.exec(stdout.slice(idx));
+            const status = m ? parseInt(m[1], 10) : 0;
+            const body = stdout.slice(0, idx).replace(/\n$/, "");
             resolve({ status, body });
         });
     });
 }
 
+/* Race semua jalur; resolve pada pemenang pertama, reject kalau semua gagal */
 async function ambil(url) {
-    // 1) proxy yang terakhir berhasil
-    if (proxyAktif) {
-        try {
-            const r = await curlOnce(url, proxyAktif);
-            if (r.status === 200 && !isChallenge(r.body)) return { status: r.status, data: r.body };
-        } catch (e) { proxyAktif = null; }
-    }
-    // 2) tanpa proxy
+    /* Normalisasi: buang trailing slash (kecuali root) — /latest/ -> /latest
+       menghindari 301 http<->https yang memicu challenge */
     try {
-        const r = await curlOnce(url, null);
-        if (r.status === 200 && !isChallenge(r.body)) return { status: r.status, data: r.body };
-    } catch (e) { /* lanjut */ }
-    // 3) rotasi daftar proxy (maks 15 percobaan)
-    for (let i = 0; i < daftarProxy.length && i < 15; i++) {
-        const p = proxyBerikut();
-        if (!p) break;
-        try {
-            const r = await curlOnce(url, p);
-            if (r.status === 200 && !isChallenge(r.body)) {
-                proxyAktif = p;
-                return { status: r.status, data: r.body };
-            }
-        } catch (e) { /* coba berikutnya */ }
-    }
-    const err = new Error("Semua jalur gagal (direct + proxy) untuk " + url);
-    err.status = 502;
-    throw err;
-}
+        const u = new URL(url);
+        if (u.pathname.length > 1 && u.pathname.endsWith('/')) {
+            u.pathname = u.pathname.slice(0, -1);
+            url = u.toString();
+        }
+    } catch (e) {}
+    const jalur = [null, ...acak(daftarProxy).slice(0, MAKS_BERSAMAAN)];
 
-function isChallenge(body) {
-    const cek = (body || "").slice(0, 3000);
-    return /just a moment|tunggu sebentar|cf-chl|challenge-platform/i.test(cek);
+    return new Promise((resolve, reject) => {
+        let selesai = false;
+        let gagal = 0;
+        const total = jalur.length;
+        const catat = [];
+
+        jalur.forEach((proxy) => {
+            curlOnce(url, proxy).then((r) => {
+                if (selesai) return;
+                if (r.status === 200 && !isChallenge(r.body)) {
+                    selesai = true;
+                    /* proxy pemenang didahulukan untuk request berikutnya */
+                    if (proxy) {
+                        daftarProxy = [proxy, ...daftarProxy.filter(p => p !== proxy)];
+                    }
+                    resolve({ status: r.status, data: r.body, proxy: proxy || "direct" });
+                } else {
+                    gagal++;
+                    catat.push((proxy || "direct") + "=" + r.status);
+                    if (gagal === total) {
+                        const e = new Error("Semua jalur gagal (" + catat.join(",") + ") untuk " + url);
+                        e.status = 502;
+                        reject(e);
+                    }
+                }
+            }).catch(() => {
+                if (selesai) return;
+                gagal++;
+                if (gagal === total) {
+                    const e = new Error("Semua jalur gagal (timeout/error) untuk " + url);
+                    e.status = 502;
+                    reject(e);
+                }
+            });
+        });
+    });
 }
 
 module.exports = { ambil, UA };
