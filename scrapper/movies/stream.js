@@ -64,7 +64,7 @@ async function streamMovies(idmovies) {
         let synopsis = "N/A";
         $("p").each((i, el) => {
             const t = $(el).text().trim();
-            if (synopsis === "N/A" && t.length > 100 && !/komentar|diskusi|Selamat berdiskusi|Jangan sampai ketinggalan|Follow update|Telegram/i.test(t)) synopsis = t;
+            if (synopsis === "N/A" && t.length > 100 && !/komentar|diskusi|Selamat berdiskusi|Jangan sampai ketinggalan|Follow update|Telegram|tidak menemukan trailer|memeriksa langsung di YouTube|trailer yang pas/i.test(t)) synopsis = t;
         });
 
         /* Streaming: iframe player utama + link providers kalau ada */
