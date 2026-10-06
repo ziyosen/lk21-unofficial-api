@@ -51,9 +51,31 @@ const https = require("https");
 
 app.get("/movies/:slug/play", async (req, res) => {
     try {
-        const page = await ambil(`${process.env.LK21_BASE_MOVIE}${req.params.slug}`);
-        const $ = cheerio.load(page.data);
-        const iframe = $("iframe#main-player").attr("src");
+        // Coba film dulu (tv12), lalu series (tv9) — katalog mencampur keduanya
+        let iframe = null;
+        for (const base of [process.env.LK21_BASE_MOVIE, process.env.LK21_BASE_SERIES]) {
+            if (!base) continue;
+            try {
+                const page = await ambil(`${base}${req.params.slug}`);
+                const $p = cheerio.load(page.data);
+                const src = $p("iframe#main-player").attr("src");
+                if (src) { iframe = src; break; }
+            } catch (e) { /* lanjut ke base berikutnya */ }
+        }
+        // Series tanpa episode: coba episode pertama (slug-season-1-episode-1-tahun)
+        if (!iframe) {
+            const ym = /-(\d{4})$/.exec(req.params.slug);
+            if (ym) {
+                const epSlug = `${req.params.slug.slice(0, -5)}-season-1-episode-1-${ym[1]}`;
+                try {
+                    const page = await ambil(`${process.env.LK21_BASE_SERIES}${epSlug}`);
+                    const $p = cheerio.load(page.data);
+                    iframe = $p("iframe#main-player").attr("src") || null;
+                    if (iframe) {
+                        /* lanjut ke resolve HLS di bawah */ }
+                } catch (e) {}
+            }
+        }
         if (!iframe) return res.status(404).json({ status: false, message: "Player tidak ditemukan" });
         const m = /\/iframe3\/([a-z0-9]+)\/([A-Za-z0-9_-]+)/.exec(iframe);
         if (!m) return res.status(404).json({ status: false, message: "ID player tidak terbaca" });
