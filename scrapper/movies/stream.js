@@ -12,6 +12,13 @@ async function streamMovies(idmovies) {
         const response = await ambil(url);
         const $ = cheerio.load(response.data);
 
+        // Guard: halaman sumber = halaman redirect iklan (nontondrama), bukan halaman film
+        const _t = $("h1").first().text() + " " + ($("title").text() || "");
+        if (/dialihkan\s+ke|nontondrama/i.test(_t)) {
+            return { slug: idmovies, title: null, redirect_page: true, synopsis: null,
+                     image: null, quality: "N/A", rating: "N/A", duration: "N/A",
+                     genres: [], country: "N/A", release: "N/A", stars: [], directors: [], stream: [] };
+        }
         const title = $("h1").first().text().trim() || "N/A";
         const image =
             $('meta[property="og:image"]').attr("content") ||
