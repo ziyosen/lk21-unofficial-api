@@ -26,7 +26,7 @@ body.noscroll{overflow:hidden}
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
 
 /* ===== NAVBAR ===== */
-nav{position:fixed;top:0;left:0;right:0;z-index:60;padding:14px 0;transition:background .35s,padding .35s,backdrop-filter .35s}
+nav{position:fixed;top:0;left:0;right:0;z-index:60;padding:10px 0;background:linear-gradient(180deg,rgba(11,11,15,.98),rgba(11,11,15,.94));backdrop-filter:blur(14px);box-shadow:0 8px 30px rgba(0,0,0,.35);border-bottom:1px solid rgba(255,255,255,.06);transition:padding .35s}
 nav.solid{background:linear-gradient(180deg,rgba(11,11,15,.98),rgba(11,11,15,.92));backdrop-filter:blur(14px);box-shadow:0 8px 30px rgba(0,0,0,.5);padding:9px 0}
 .navin{max-width:1500px;margin:0 auto;padding:0 22px;display:flex;align-items:center;gap:22px}
 .logo{font-weight:900;font-size:23px;letter-spacing:-.8px;display:flex;align-items:center;gap:8px;flex-shrink:0;cursor:pointer}
@@ -700,6 +700,28 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail()});
 
 /* ================= SCROLL NAV ================= */
+
+/* Anti redirect/popunder iklan sumber */
+(function(){
+  const _open = window.open;
+  window.open = function(u, t, f){
+    try{
+      const url = new URL(u, location.href);
+      if(/youtube\.com|youtu\.be$/.test(url.hostname)) return _open.call(window,u,t,f);
+      console.warn('Popblocked:', u); return null;
+    }catch(e){ return null; }
+  };
+  window.addEventListener('beforeunload', function(e){
+    if(window.__playing && !window.__navIntent){ e.preventDefault(); e.returnValue=''; }
+  });
+  let _assign = location.assign.bind(location);
+  // tanda navigasi internal
+  document.addEventListener('click', function(e){
+    const a = e.target.closest && e.target.closest('a[href]');
+    if(a) window.__navIntent = true;
+  }, true);
+})();
+
 window.addEventListener('scroll',()=>{
   document.getElementById('nav').classList.toggle('solid',window.scrollY>40);
 },{passive:true});
