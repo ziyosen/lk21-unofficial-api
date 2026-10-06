@@ -1,68 +1,91 @@
-const axios = require("axios");
-const { ambil } = require("../fetcher");
 const cheerio = require("cheerio");
+const { ambil } = require("../fetcher");
 require("dotenv").config();
 
+/* getEpisode (detail series): map struktur HTML tv9 yang baru.
+   - h1 judul, og:image poster, meta genre/rating bila ada
+   - info <p><span>Label: </span>...</p> (Bintang Film, Negara, dst)
+   - season-list / episode-list: link per episode /slug-season-N-episode-M-tahun */
 async function getEpisode(idSeries) {
-    try{
+    try {
         const url = `${process.env.LK21_BASE_SERIES}${idSeries}`;
-        const response = await ambil(url, {
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
-            }
-        });
+        const response = await ambil(url);
         const $ = cheerio.load(response.data);
-        const title = $("body > main > section.post-wrapper > div > div:nth-child(2) > div > article > header > h1 > a").text().trim().replace("Download Film BluRay Layarkaca21 Lk21 Dunia21", "") || "N/A";
-        const image = $("#movie-detail > div > div.col-xs-3.content-poster > figure > picture > img").attr("src") || null;
-        const status = $("#movie-detail .content h3").eq(0).text().trim() || "N/A";
-        const genres = $("#movie-detail .content").find("div:contains('Genre')").text().replace("Genre", "").trim() || "N/A";
-        const diterbitkan = $("#movie-detail .content").find("div:contains('Diterbitkan')").text().replace("Diterbitkan", "").trim() || "N/A";
-        let bintang_film = [];
-        $("#movie-detail > div > div.col-xs-9.content > div:nth-child(2) h3 a").each((i, el) => {
-            const nama = $(el).text().trim();
-            if (nama) bintang_film.push(nama);
+
+        const title = $("h1").first().text().trim() || "N/A";
+        const image =
+            $('meta[property="og:image"]').attr("content") ||
+            $("img[itemprop='image']").attr("src") || null;
+        const rating =
+            $("span[itemprop='ratingValue']").first().text().trim() ||
+            $(".rating-score").first().text().trim() || "N/A";
+        const genres =
+            $('meta[itemprop="genre"]').attr("content") ||
+            $("div.genre").first().text().trim() || "N/A";
+
+        /* info <p><span>Label: </span>...</p> */
+        const info = {};
+        $("p").each((i, el) => {
+            const label = $(el).find("span").first().text().trim().replace(/:$/, "");
+            if (!label) return;
+            const links = [];
+            $(el).find("a").each((j, a) => links.push($(a).text().trim()));
+            const teks = $(el).clone().children("span").remove().end().text().trim();
+            if (links.length) info[label] = links.filter(Boolean);
+            else if (teks) info[label] = teks;
         });
-        bintang_film = bintang_film.length > 0 ? bintang_film.join(", ") : "N/A";
+
+        const stars = info["Bintang Film"] || [];
+        const country = Array.isArray(info["Negara"]) ? info["Negara"][0] : (info["Negara"] || "N/A");
+        const terbaru = info["Terbaru"] || "N/A";
+
+        /* Sinopsis: p panjang yang bukan meta */
         let synopsis = "N/A";
-        const block = $("#movie-detail > div > div.col-xs-9.content > blockquote");
-
-        if (block.length) {
-            // Ambil isi blockquote tanpa isi <strong> dan <span>
-            block.find("strong").remove();
-            block.find("span").remove();
-
-            synopsis = block.text().trim().replace(/\s+/g, " ");
-        }
-
-        const episode = [];
-        $("body > main > section.post-wrapper > div > div:nth-child(2) > div > div.serial-wrapper > div.episode-list a").each((i, el) => {
-            const link = $(el).attr("href");
-            const text = $(el).text().trim();
-
-            if (!link || text === "Info") return; // lewati jika tidak ada link atau text-nya "Info"
-
-            const slug = new URL(link, process.env.LK21_BASE_SERIES).pathname.split("/").filter(Boolean).pop();
-            episode.push({ slug, text });
+        $("p").each((i, el) => {
+            const t = $(el).text().trim();
+            if (synopsis === "N/A" && t.length > 120 &&
+                !/komentar|diskusi|Follow update|Jangan sampai ketinggalan/i.test(t)) synopsis = t;
         });
 
+        /* Season badge (span.duration = "S.N") & total eps badge (EPS<strong>N</strong>) */
+        const seasons = [...new Set($("span.duration").map((i, el) => $(el).text().trim()).get())].filter(s => /^S\.?\d+$/i.test(s));
+        const total_eps = parseInt($("span.episode strong").first().text().trim(), 10) || null;
+
+        /* Episode terbaru: link /slug-season-N-episode-M-tahun */
+        const episodes = [];
+        {
+            const re = /href="(\/[a-z0-9-]+-season-\d+-episode-\d+-\d{4})"/gi;
+            const seen = new Set();
+            let m;
+            while ((m = re.exec(response.data)) !== null) {
+                if (!seen.has(m[1])) {
+                    seen.add(m[1]);
+                    episodes.push({ label: m[1].split("/").pop(), href: m[1] });
+                }
+            }
+        }
 
         return {
             slug: idSeries,
             title,
             image,
-            bintang_film,
-            status,
+            rating,
             genres,
-            synopsis,
-            diterbitkan,
-            episode
-        }
-    } catch (err){
-        console.log("error: ", err);
+            stars,
+            country,
+            terbaru,
+            seasons,
+            total_eps,
+            episodes,
+            synopsis
+        };
+
+    } catch (err) {
+        console.error("Terjadi kesalahan saat mengambil data getEpisode:", err.message);
         throw err;
     }
 }
 
 module.exports = {
     getEpisode
-}
+};

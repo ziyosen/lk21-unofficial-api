@@ -5,18 +5,14 @@ require("dotenv").config()
 
 async function getYearsSeries(){
     try{
-        const response = await ambil(process.env.LK21_BASE_SERIES, {
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
-            }
-        });
+        const response = await ambil(process.env.LK21_BASE_SERIES);
         const $ = cheerio.load(response.data);
         const years = [];
-        $('#primary-menu > ul:nth-child(1) > li:nth-child(6) > ul > li > div > ul > li > a').each((i, el) => {
+        $('a[href^="/year/"]').each((i, el) => {
             const name = $(el).text().trim();
             const link = $(el).attr("href");
             const href = new URL(link, process.env.LK21_BASE_SERIES).pathname.split('/').filter(Boolean).pop();
-            years.push({name, href});
+            if (!years.find(y => y.href === href)) years.push({name, href});
         });
         return years;
     } catch (err){
