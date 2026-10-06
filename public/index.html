@@ -120,6 +120,11 @@ header{position:sticky;top:0;z-index:50;background:rgba(11,11,15,.92);backdrop-f
 .vact svg{width:19px;height:19px}
 .vact.on{color:var(--acc);border-color:var(--acc)}
 .vsyn{font-size:13px;line-height:1.65;color:#c0c0cd;margin-top:13px}
+/* Play row: thumbnail kecil + tombol compact (bukan full-width) */
+.playrow{display:flex;align-items:center;gap:11px;margin-top:13px}
+.prthumb{width:58px;aspect-ratio:2/3;object-fit:cover;border-radius:9px;border:1px solid var(--line);flex-shrink:0}
+.prbtn{flex:1;justify-content:center;padding:12px 10px;background:var(--grad);color:#fff;box-shadow:0 6px 18px rgba(249,115,22,.3);font-size:13.5px}
+#btnplay{display:none}
 .vsyn.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .vmore{color:var(--acc);font-size:12px;font-weight:800;margin-top:5px}
 .eplist{margin-top:15px;border-top:1px solid var(--line);padding-top:13px}
@@ -323,7 +328,7 @@ function renderDetail(m,eps,isSeries,slug){
     +'<button class="vact" onclick="doShare(\''+esc(slug)+'\')">'+ICONS.share+'Share</button>'
     +'<button class="vact'+(saved?' on':'')+'" id="aSave" onclick="doSave(\''+esc(slug)+'\')">'+ICONS.bookmark+'Save</button></div>'
     +'<div class="ratebox" id="ratebox"><span>Rating kamu:</span>'+[1,2,3,4,5].map(function(i){return '<button data-n="'+i+'" aria-label="Beri rating '+i+'" onclick="rateSlug(\''+esc(slug)+'\','+i+')">★</button>'}).join('')+'</div>'
-    +'<div style="margin-top:13px"><button class="bplay" id="btnplay" style="width:100%;justify-content:center;padding:13px;background:var(--grad);color:#fff;box-shadow:0 8px 22px rgba(249,115,22,.35)" onclick="playMovie(\''+esc(isSeries&&eps.length?eps[0].href.split('/').join(''):slug)+'\')">'+ICONS.play+(isSeries?' Putar Episode 1':' Putar Sekarang')+'</button></div>'
+    +'<div class="playrow"><img class="prthumb" src="'+img(m)+'" alt="" onerror="this.style.display=\'none\'"><button class="bplay prbtn" onclick="playMovie(\''+esc(isSeries&&eps.length?eps[0].href.split('/').join(''):slug)+'\')">'+ICONS.play+(isSeries?' Putar Episode 1':' Putar Sekarang')+'</button></div>'
     +'<div class="vsyn clamp" id="syn">'+esc((m.synopsis&&/tidak menemukan trailer|memeriksa langsung di YouTube/i.test(m.synopsis))?'Sinopsis belum tersedia.':(m.synopsis||'Sinopsis belum tersedia.'))+'</div><button class="vmore" id="synbtn" onclick="togSyn()">Selengkapnya ▾</button>'
     +'<div class="vstatus" id="vstatus"></div>'
     +(eps.length?'<div class="eplist"><h3>📺 '+eps.length+' Episode</h3>'+eps.map(function(e,i){return '<button class="eitem" onclick="playMovie(\''+esc(e.href.split('/').join(''))+'\')"><b>'+(i+1)+'</b><span>'+esc(e.label)+'</span></button>'}).join('')+'</div>':'')
