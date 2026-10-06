@@ -3,57 +3,80 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CineZone — Nonton Film & Series</title>
-<meta property="og:title" content="CineZone">
-<meta property="og:description" content="Katalog film & series — powered by LK21 Unofficial API">
+<title>CineZone — Nonton Film & Series Sub Indo</title>
 <style>
-:root{--bg:#0b0e14;--card:#141824;--accent:#f97316;--text:#e7e9ee;--muted:#8b93a7}
+:root{
+  --bg:#f8fafc; --bg2:#ffffff; --card:#ffffff; --bord:#e2e8f0; --hov:#f1f5f9;
+  --text:#1e293b; --mut:#64748b; --acc:#f97316; --acc2:#fb923c; --sh:0 1px 3px rgba(0,0,0,.08);
+}
+html.dark{
+  --bg:#0f172a; --bg2:#1e293b; --card:#1e293b; --bord:#334155; --hov:#334155;
+  --text:#f1f5f9; --mut:#94a3b8;
+}
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif}
-header{position:sticky;top:0;z-index:10;background:rgba(11,14,20,.92);backdrop-filter:blur(8px);border-bottom:1px solid #1f2536;padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-.logo{font-weight:800;font-size:20px;color:var(--accent);letter-spacing:-.5px}
-.logo span{color:var(--text)}
-#q{flex:1;min-width:180px;background:var(--card);border:1px solid #262d42;border-radius:10px;padding:10px 14px;color:var(--text);font-size:15px;outline:none}
-#q:focus{border-color:var(--accent)}
-main{max-width:1280px;margin:0 auto;padding:16px}
-.tabs{display:flex;gap:8px;overflow-x:auto;padding:4px 0 14px}
-.tabs button{background:var(--card);border:1px solid #262d42;color:var(--muted);border-radius:20px;padding:8px 16px;font-size:14px;cursor:pointer;white-space:nowrap}
-.tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px}
-.card{background:var(--card);border-radius:12px;overflow:hidden;cursor:pointer;transition:transform .15s,box-shadow .15s}
-.card:hover{transform:translateY(-4px);box-shadow:0 8px 24px rgba(0,0,0,.5)}
-.poster{position:relative;aspect-ratio:2/3;background:#1c2233}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;transition:background .3s,color .3s}
+button{font-family:inherit}
+/* NAVBAR */
+nav{position:sticky;top:0;z-index:40;background:var(--bg2);border-bottom:1px solid var(--bord);transition:all .3s}
+.nav-in{max-width:1200px;margin:0 auto;padding:10px 16px;display:flex;gap:12px;align-items:center}
+.logo{font-weight:900;font-size:20px;color:var(--acc);display:flex;align-items:center;gap:7px;white-space:nowrap}
+.logo svg{width:22px;height:22px}
+#q{flex:1;min-width:120px;background:var(--bg);border:1.5px solid var(--bord);border-radius:10px;padding:9px 14px;color:var(--text);font-size:14.5px;outline:none;transition:border .2s}
+#q:focus{border-color:var(--acc)}
+.tbtn{background:var(--bg);border:1.5px solid var(--bord);border-radius:10px;width:38px;height:38px;cursor:pointer;font-size:16px;display:grid;place-items:center;flex-shrink:0}
+main{max-width:1200px;margin:0 auto;padding:18px 16px 40px}
+/* TABS */
+.tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 0 16px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{background:var(--card);border:1.5px solid var(--bord);color:var(--mut);border-radius:999px;padding:8px 16px;font-size:13.5px;cursor:pointer;white-space:nowrap;font-weight:600;transition:all .2s}
+.tabs button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+/* GRID & CARD */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px}
+@media(max-width:420px){.grid{grid-template-columns:repeat(2,1fr)}}
+.card{background:var(--card);border:1px solid var(--bord);border-radius:14px;overflow:hidden;cursor:pointer;transition:transform .2s,box-shadow .2s;box-shadow:var(--sh)}
+.card:hover{transform:translateY(-5px) scale(1.02);box-shadow:0 12px 28px rgba(0,0,0,.18)}
+.poster{position:relative;aspect-ratio:2/3;background:var(--hov);overflow:hidden}
 .poster img{width:100%;height:100%;object-fit:cover;display:block}
-.badge{position:absolute;background:rgba(0,0,0,.75);border-radius:6px;padding:2px 7px;font-size:11px}
-.badge.rate{top:8px;left:8px;color:#fbbf24;font-weight:700}
-.badge.qual{top:8px;right:8px;color:#4ade80;font-weight:600}
-.info{padding:10px}
-.info h3{font-size:13.5px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.meta{margin-top:5px;font-size:11.5px;color:var(--muted)}
-.pager{display:flex;gap:10px;justify-content:center;align-items:center;padding:22px 0}
-.pager button{background:var(--card);border:1px solid #262d42;color:var(--text);border-radius:8px;padding:9px 18px;cursor:pointer}
+.shimmer{position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.25) 50%,transparent 70%);background-size:200% 100%;animation:shm 1.4s infinite}
+@keyframes shm{to{background-position:-200% 0}}
+.badge{position:absolute;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);border-radius:7px;padding:2.5px 8px;font-size:11px}
+.badge.rate{top:8px;left:8px;color:#fbbf24;font-weight:800}
+.badge.qual{top:8px;right:8px;color:#4ade80;font-weight:700;font-size:10px;letter-spacing:.4px}
+.info{padding:10px 11px 12px}
+.info h3{font-size:13.5px;font-weight:700;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px}
+.meta{margin-top:5px;font-size:11.5px;color:var(--mut);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+/* PAGER */
+.pager{display:flex;gap:10px;justify-content:center;align-items:center;padding:24px 0 6px}
+.pager button{background:var(--card);border:1.5px solid var(--bord);color:var(--text);border-radius:10px;padding:9px 20px;cursor:pointer;font-weight:600}
 .pager button:disabled{opacity:.35;cursor:default}
-.pager span{color:var(--muted);font-size:14px}
-#detail{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;z-index:50;overflow-y:auto}
-#detail .sheet{max-width:900px;margin:40px auto;background:var(--card);border-radius:16px;overflow:hidden}
-#detail .hero{display:flex;gap:20px;padding:24px;flex-wrap:wrap}
-#detail .hero img{width:200px;border-radius:10px;flex-shrink:0}
-#detail h2{font-size:22px;margin-bottom:8px}
-#detail .sub{color:var(--muted);font-size:13.5px;margin-bottom:6px}
-#detail .syn{margin-top:12px;font-size:14px;line-height:1.6;color:#c6cbd8}
-#detail .tag{display:inline-block;background:#1f2536;border-radius:6px;padding:3px 9px;font-size:12px;margin:3px 4px 0 0;color:#aeb6c9}
-#detail .close{position:fixed;top:16px;right:16px;background:var(--accent);color:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer;z-index:60}
-.empty{text-align:center;color:var(--muted);padding:60px 20px;font-size:15px}
-.spin{margin:50px auto;width:36px;height:36px;border:3px solid #262d42;border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite}
+.pager span{color:var(--mut);font-size:13.5px;font-weight:600}
+/* DETAIL MODAL */
+#detail{position:fixed;inset:0;background:rgba(2,6,23,.8);backdrop-filter:blur(6px);display:none;z-index:50;overflow-y:auto;padding:20px}
+.sheet{max-width:880px;margin:20px auto;background:var(--bg2);border:1px solid var(--bord);border-radius:18px;overflow:hidden;animation:up .25s ease}
+@keyframes up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+.hero{display:flex;gap:20px;padding:22px;flex-wrap:wrap}
+.hero img{width:190px;border-radius:12px;flex-shrink:0;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.hero h2{font-size:21px;margin-bottom:8px;line-height:1.3}
+.sub{color:var(--mut);font-size:13px;margin-bottom:6px}
+.syn{margin-top:12px;font-size:13.5px;line-height:1.65;color:var(--text);opacity:.85}
+.tag{display:inline-block;background:var(--hov);border:1px solid var(--bord);border-radius:7px;padding:3px 10px;font-size:11.5px;margin:3px 5px 0 0;font-weight:600}
+.close{position:fixed;top:14px;right:14px;background:var(--acc);color:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:17px;cursor:pointer;z-index:60;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.putar{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;border:none;border-radius:10px;padding:12px 30px;font-weight:800;cursor:pointer;font-size:15px;margin-bottom:12px;box-shadow:0 6px 18px rgba(249,115,22,.4);display:inline-flex;align-items:center;gap:8px}
+.putar:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(249,115,22,.5)}
+#vid{width:100%;aspect-ratio:16/9;border-radius:12px;background:#000;margin-top:14px}
+.empty{text-align:center;color:var(--mut);padding:60px 20px;font-size:14.5px}
+.spin{margin:60px auto;width:34px;height:34px;border:3px solid var(--bord);border-top-color:var(--acc);border-radius:50%;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
-footer{text-align:center;color:var(--muted);font-size:12px;padding:26px}
+footer{text-align:center;color:var(--mut);font-size:12px;padding:26px;border-top:1px solid var(--bord);margin-top:20px}
 </style>
 </head>
 <body>
-<header>
-  <div class="logo">Cine<span>Zone</span></div>
-  <input id="q" placeholder="🔍 Cari film / series..." autocomplete="off">
-</header>
+<nav><div class="nav-in">
+  <div class="logo"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm3 2v2h2V5H7zm8 0v2h2V5h-2zM7 19v2h2v-2H7zm8 0v2h2v-2h-2zM10 9.5v5l4.5-2.5L10 9.5z"/></svg>Cine<span style="color:var(--text)">Zone</span></div>
+  <input id="q" placeholder="Cari film atau series..." autocomplete="off">
+  <button class="tbtn" id="themeBtn" title="Ganti tema">🌙</button>
+</div></nav>
 <main>
   <div class="tabs" id="tabs"></div>
   <div id="content"></div>
@@ -62,8 +85,8 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:26px}
   </div>
 </main>
 <div id="detail"><button class="close" onclick="closeDetail()">✕</button><div class="sheet" id="sheet"></div></div>
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
 <footer>By: ZeinthHub Project · Powered by LK21 Unofficial API</footer>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
 <script>
 const API = window.CINE_API || (location.origin.includes('vercel') ? location.origin : 'http://localhost:8000');
 const TABS = [
@@ -75,20 +98,24 @@ const TABS = [
 ];
 let tab='latest', page=1, searchMode=false;
 
-function esc(s){return String(s ?? '').replace(/[<>&\"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','\"':'&quot;'}[c]))}[c]))}
+/* tema */
+const tbtn=document.getElementById('themeBtn');
+function applyTheme(t){document.documentElement.classList.toggle('dark',t==='dark');tbtn.textContent=t==='dark'?'☀️':'🌙';localStorage.setItem('cz-theme',t)}
+applyTheme(localStorage.getItem('cz-theme')|| (matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));
+tbtn.onclick=()=>applyTheme(document.documentElement.classList.contains('dark')?'light':'dark');
 
-async function jget(u){
-  const r = await fetch(API+u);
-  if(!r.ok) throw new Error('HTTP '+r.status);
-  return r.json();
-}
+function esc(s){return String(s??'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}
+const PLACE='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22150%22 height=%22225%22%3E%3Crect width=%22100%25%22 height=%22100%25%22 fill=%22%23334155%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 fill=%22%2394a3b8%22 text-anchor=%22middle%22 font-size=%2242%22%3E%F0%9F%8E%AC%3C/text%3E%3C/svg%3E';
+
+async function jget(u){const r=await fetch(API+u);if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
 
 function cards(items){
   return items.map(m=>`
   <div class="card" onclick="openDetail('${esc(m.slug)}')">
     <div class="poster">
-      <img loading="lazy" src="${esc(m.images)}" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22140%22 height=%22210%22%3E%3Crect width=%22100%25%22 height=%22100%25%22 fill=%22%231c2233%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 fill=%22%238b93a7%22 text-anchor=%22middle%22 font-size=%2240%22%3E%F0%9F%8E%AC%3C/text%3E%3C/svg%3E'">
-      ${m.rating&&m.rating!=='N/A'?`<span class="badge rate">★ ${esc(m.rating)}</span>`:''}
+      <div class="shimmer" id="sh-${esc(m.slug).replace(/[^a-z0-9]/gi,'')}"></div>
+      <img loading="lazy" src="${esc(m.images||PLACE)}" onload="this.previousElementSibling&&this.previousElementSibling.remove()" onerror="this.onerror=null;this.src='${PLACE}';this.previousElementSibling&&this.previousElementSibling.remove()">
+      ${m.rating&&m.rating!=='N/A'&&m.rating!=='0'?`<span class="badge rate">★ ${esc(m.rating)}</span>`:''}
       ${m.quality&&m.quality!=='N/A'?`<span class="badge qual">${esc(m.quality)}</span>`:''}
     </div>
     <div class="info"><h3>${esc(m.title)}</h3>
@@ -97,125 +124,93 @@ function cards(items){
 }
 
 async function load(){
-  const c = document.getElementById('content');
-  c.innerHTML = '<div class="spin"></div>';
+  const c=document.getElementById('content');
+  c.innerHTML='<div class="spin"></div>';
   document.getElementById('pager').style.display='none';
   try{
-    if(searchMode){
-      const d = await jget(`/search?s=${encodeURIComponent(tab)}&page=${page}`);
-      const r = d.results||[];
-      c.innerHTML = r.length ? `<div class="grid">${cards(r)}</div>` : `<div class="empty">Tidak ada hasil untuk "${esc(tab)}" 😕</div>`;
-      renderPager(d.total_pages||1);
-    }else{
-      const t = TABS.find(t=>t.id===tab);
-      const d = await jget(t.url(page));
-      const r = d.results||[];
-      c.innerHTML = r.length ? `<div class="grid">${cards(r)}</div>` : '<div class="empty">Belum ada data 🙏</div>';
-      renderPager(d.total_pages||1);
-    }
+    const url = searchMode? `/search?s=${encodeURIComponent(tab)}&page=${page}` : TABS.find(t=>t.id===tab).url(page);
+    const d = await jget(url);
+    const r = d.results||[];
+    c.innerHTML = r.length? `<div class="grid">${cards(r)}</div>` : `<div class="empty">${searchMode?`Tidak ada hasil untuk "${esc(tab)}" 😕`:'Belum ada data 🙏'}</div>`;
+    const tp=d.total_pages||1;
+    if(tp>1){document.getElementById('pager').style.display='flex';document.getElementById('pginfo').textContent=`Halaman ${page} / ${tp}`;}
+    document.getElementById('prev').disabled=page<=1;
+    document.getElementById('next').disabled=page>=tp;
   }catch(e){
-    c.innerHTML = `<div class="empty">Gagal memuat: ${esc(e.message)}<br><small>Coba lagi sebentar (proxy sedang sibuk)</small></div>`;
+    c.innerHTML=`<div class="empty">Gagal memuat: ${esc(e.message)}<br><small>Coba lagi sebentar</small></div>`;
   }
 }
-
-function renderPager(tp){
-  const p = document.getElementById('pager');
-  if(tp>1){p.style.display='flex';document.getElementById('pginfo').textContent=`Halaman ${page} / ${tp}`;}
-  document.getElementById('prev').disabled = page<=1;
-  document.getElementById('next').disabled = page>=tp;
-}
-
 function renderTabs(){
-  document.getElementById('tabs').innerHTML = TABS.map(t=>
+  document.getElementById('tabs').innerHTML=TABS.map(t=>
     `<button class="${t.id===tab&&!searchMode?'on':''}" onclick="pick('${t.id}')">${t.label}</button>`).join('');
 }
-function pick(id){tab=id;searchMode=false;page=1;document.getElementById('q').value='';renderTabs();load();}
-
-let sTimer;
-document.getElementById('q').addEventListener('input', e=>{
-  clearTimeout(sTimer);
-  sTimer = setTimeout(()=>{
-    const v = e.target.value.trim();
-    if(v){tab=v;searchMode=true;page=1;}
-    else{searchMode=false;tab='latest';page=1;}
-    renderTabs();load();
-  }, 550);
+function pick(id){tab=id;searchMode=false;page=1;document.getElementById('q').value='';renderTabs();load();window.scrollTo(0,0)}
+let sT;document.getElementById('q').addEventListener('input',e=>{
+  clearTimeout(sT);
+  sT=setTimeout(()=>{const v=e.target.value.trim();
+    if(v){tab=v;searchMode=true;page=1}else{searchMode=false;tab='latest';page=1}
+    renderTabs();load();},550);
 });
-document.getElementById('prev').onclick = ()=>{if(page>1){page--;load();window.scrollTo(0,0)}};
-document.getElementById('next').onclick = ()=>{page++;load();window.scrollTo(0,0)};
+document.getElementById('prev').onclick=()=>{if(page>1){page--;load();window.scrollTo(0,0)}};
+document.getElementById('next').onclick=()=>{page++;load();window.scrollTo(0,0)};
 
-async function openDetail(slug){
-  const d = document.getElementById('detail');
-  const s = document.getElementById('sheet');
-  d.style.display='block'; s.innerHTML='<div class="spin"></div>';
-  try{
-    const j = await jget(`/movies/${slug}/stream`);
-    const m = j.result||{};
-    s.innerHTML = `
-    <div class="hero">
-      <img src="${esc(m.image)}" onerror="this.style.visibility='hidden'">
-      <div style="flex:1;min-width:220px">
-        <button onclick="playMovie('${esc(m.slug)}')" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:12px 26px;font-weight:800;cursor:pointer;font-size:15px;margin-bottom:12px">▶️ PUTAR</button>
-        <h2>${esc(m.title)} ${m.year&&m.year!=='N/A'?`<small style="color:var(--muted)">(${esc(m.year)})</small>`:''}</h2>
-        <div class="sub">${[m.rating&&'★ '+m.rating, m.quality, m.duration, m.country, m.release].filter(x=>x&&x!=='N/A').map(esc).join(' · ')}</div>
-        <div>${(Array.isArray(m.genres)?m.genres:String(m.genres||'').split(',')).map(g=>`<span class="tag">${esc(g.trim())}</span>`).join('')}</div>
-        ${m.directors&&m.directors.length?`<div class="sub" style="margin-top:10px">🎬 Sutradara: ${m.directors.map(esc).join(', ')}</div>`:''}
-        ${m.stars&&m.stars.length?`<div class="sub">🌟 ${m.stars.map(esc).join(', ')}</div>`:''}
-        <div class="syn">${esc(m.synopsis)}</div>
-        <div id="playerbox" style="display:none;margin-top:16px">
-          <video id="vid" controls autoplay playsinline style="width:100%;aspect-ratio:16/9;border-radius:10px;background:#000"></video>
-          <div id="vstatus" class="sub" style="margin-top:8px"></div>
-        </div>
-        <div id="playbtns" style="margin-top:14px"></div>
-      </div>
-    </div>`;
-  }catch(e){
-    s.innerHTML = `<div class="empty">Gagal memuat detail: ${esc(e.message)}</div>`;
-  }
-}
-let hlsInst = null;
+/* DETAIL + PLAYER */
+let hlsInst=null;
 function stopVideo(){
-  if (hlsInst) { hlsInst.destroy(); hlsInst = null; }
-  const v = document.getElementById('vid');
-  if (v) { v.pause(); v.removeAttribute('src'); v.load(); }
+  if(hlsInst){hlsInst.destroy();hlsInst=null}
+  const v=document.getElementById('vid');
+  if(v){v.pause();v.removeAttribute('src');v.load()}
 }
 async function playMovie(slug){
-  const box = document.getElementById('playerbox'), st = document.getElementById('vstatus'), btns = document.getElementById('playbtns');
-  box.style.display='block'; st.textContent='⏳ Menyiapkan sumber video...';
-  btns.innerHTML='';
-  stopVideo();
-  box.scrollIntoView({behavior:'smooth'});
+  const box=document.getElementById('playerbox'),st=document.getElementById('vstatus');
+  box.style.display='block';st.textContent='⏳ Menyiapkan sumber video...';
+  stopVideo();box.scrollIntoView({behavior:'smooth'});
   try{
-    const j = await jget(`/movies/${slug}/play`);
-    const v = document.getElementById('vid');
-    st.textContent = '🎬 ' + (j.title || '');
-    st.textContent = '';
-    if (hlsInst) { hlsInst.destroy(); hlsInst=null; }
-    if (v.canPlayType('application/vnd.apple.mpegurl')) {
-      v.src = j.hls;
-      v.play().catch(()=>{});
-    } else if (window.Hls && Hls.isSupported()) {
-      hlsInst = new Hls({ maxBufferLength: 30 });
-      hlsInst.loadSource(j.hls);
-      hlsInst.attachMedia(v);
-      hlsInst.on(Hls.Events.MANIFEST_PARSED, ()=>v.play().catch(()=>{}));
-      hlsInst.on(Hls.Events.ERROR, (_, data)=>{
-        if (data.fatal) st.textContent = '⚠️ Gagal memutar sumber ini (' + data.type + '). Coba lagi / film lain.';
-      });
-    } else {
-      st.textContent = 'Browser tidak mendukung HLS 😕';
-    }
+    const j=await jget(`/movies/${slug}/play`);
+    const v=document.getElementById('vid');
+    st.textContent='🎬 '+(j.title||'');
+    if(hlsInst){hlsInst.destroy();hlsInst=null}
+    if(v.canPlayType('application/vnd.apple.mpegurl')){v.src=j.hls;v.play().catch(()=>{})}
+    else if(window.Hls&&Hls.isSupported()){
+      hlsInst=new Hls({maxBufferLength:30});
+      hlsInst.loadSource(j.hls);hlsInst.attachMedia(v);
+      hlsInst.on(Hls.Events.MANIFEST_PARSED,()=>v.play().catch(()=>{}));
+      hlsInst.on(Hls.Events.ERROR,(_,d2)=>{if(d2.fatal)st.textContent='⚠️ Sumber bermasalah — klik PUTAR lagi atau coba judul lain.'});
+    }else st.textContent='Browser tidak mendukung HLS 😕';
   }catch(e){
-    st.textContent = e.message.indexOf('404')>=0
-      ? '😔 Judul ini belum ada sumber playernya (biasanya film baru / belum rilis). Coba judul lain ya.'
-      : '⚠️ Gagal menyiapkan video (' + e.message + '). Coba klik PUTAR lagi atau pilih judul lain.';
+    st.textContent=e.message.indexOf('404')>=0
+      ?'😔 Judul ini belum ada sumber playernya (biasanya film baru). Coba judul lain ya.'
+      :'⚠️ Gagal menyiapkan video — klik PUTAR sekali lagi.';
   }
 }
-function closeDetail(){
-  document.getElementById('detail').style.display='none';
-  stopVideo();
+async function openDetail(slug){
+  const d=document.getElementById('detail'),s=document.getElementById('sheet');
+  d.style.display='block';s.innerHTML='<div class="spin"></div>';
+  try{
+    const j=await jget(`/movies/${slug}/stream`);
+    const m=j.result||{};
+    s.innerHTML=`
+    <div class="hero">
+      <img src="${esc(m.image||PLACE)}" onerror="this.src='${PLACE}'">
+      <div style="flex:1;min-width:230px">
+        <button class="putar" onclick="playMovie('${esc(m.slug)}')">▶️ PUTAR</button>
+        <h2>${esc(m.title)} ${m.year&&m.year!=='N/A'?`<small style="color:var(--mut);font-weight:500">(${esc(m.year)})</small>`:''}</h2>
+        <div class="sub">${[m.rating&&m.rating!=='N/A'?'★ '+m.rating:'',m.quality,m.duration,m.country,m.release].filter(x=>x&&x!=='N/A').map(esc).join(' · ')}</div>
+        <div>${(Array.isArray(m.genres)?m.genres:String(m.genres||'').split(',')).filter(g=>g&&g.trim()&&g.trim()!=='N/A').map(g=>`<span class="tag">${esc(g.trim())}</span>`).join('')}</div>
+        ${m.directors&&m.directors.length?`<div class="sub" style="margin-top:10px">🎬 ${m.directors.map(esc).join(', ')}</div>`:''}
+        ${m.stars&&m.stars.length?`<div class="sub">🌟 ${m.stars.map(esc).join(', ')}</div>`:''}
+        <div class="syn">${esc(m.synopsis)}</div>
+        <div id="playerbox" style="display:none">
+          <video id="vid" controls autoplay playsinline></video>
+          <div id="vstatus" class="sub" style="margin-top:8px"></div>
+        </div>
+      </div>
+    </div>`;
+  }catch(e){s.innerHTML=`<div class="empty">Gagal memuat detail: ${esc(e.message)}</div>`}
 }
-document.getElementById('detail').addEventListener('click', e=>{if(e.target.id==='detail')closeDetail()});
+function closeDetail(){document.getElementById('detail').style.display='none';stopVideo()}
+document.getElementById('detail').addEventListener('click',e=>{if(e.target.id==='detail')closeDetail()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail()});
 renderTabs();load();
 </script>
 </body>
