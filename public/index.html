@@ -206,7 +206,9 @@ async function playMovie(slug){
       st.textContent = 'Browser tidak mendukung HLS 😕';
     }
   }catch(e){
-    st.textContent = '⚠️ Gagal menyiapkan video: ' + e.message;
+    st.textContent = e.message.indexOf('404')>=0
+      ? '😔 Judul ini belum ada sumber playernya (biasanya film baru / belum rilis). Coba judul lain ya.'
+      : '⚠️ Gagal menyiapkan video (' + e.message + '). Coba klik PUTAR lagi atau pilih judul lain.';
   }
 }
 function closeDetail(){
