@@ -320,7 +320,7 @@ function renderDetail(m,eps,isSeries,slug){
     +'<button class="vact" onclick="doShare(\''+esc(slug)+'\')">'+ICONS.share+'Share</button>'
     +'<button class="vact'+(saved?' on':'')+'" id="aSave" onclick="doSave(\''+esc(slug)+'\')">'+ICONS.bookmark+'Save</button></div>'
     +'<div class="ratebox" id="ratebox"><span>Rating kamu:</span>'+[1,2,3,4,5].map(function(i){return '<button data-n="'+i+'" aria-label="Beri rating '+i+'" onclick="rateSlug(\''+esc(slug)+'\','+i+')">★</button>'}).join('')+'</div>'
-    +'<div style="margin-top:13px"><button class="bplay" style="width:100%;justify-content:center;padding:13px" onclick="playMovie(\''+esc(isSeries&&eps.length?eps[0].href.split('/').join(''):slug)+'\')">'+ICONS.play+(isSeries?' Putar Episode 1':' Putar Sekarang')+'</button></div>'
+    +'<div style="margin-top:13px"><button class="bplay" style="width:100%;justify-content:center;padding:13px;background:var(--grad);color:#fff;box-shadow:0 8px 22px rgba(249,115,22,.35)" onclick="playMovie(\''+esc(isSeries&&eps.length?eps[0].href.split('/').join(''):slug)+'\')">'+ICONS.play+(isSeries?' Putar Episode 1':' Putar Sekarang')+'</button></div>'
     +'<div class="vsyn clamp" id="syn">'+esc((m.synopsis&&/tidak menemukan trailer|memeriksa langsung di YouTube/i.test(m.synopsis))?'Sinopsis belum tersedia.':(m.synopsis||'Sinopsis belum tersedia.'))+'</div><button class="vmore" id="synbtn" onclick="togSyn()">Selengkapnya ▾</button>'
     +'<div class="vstatus" id="vstatus"></div>'
     +(eps.length?'<div class="eplist"><h3>📺 '+eps.length+' Episode</h3>'+eps.map(function(e,i){return '<button class="eitem" onclick="playMovie(\''+esc(e.href.split('/').join(''))+'\')"><b>'+(i+1)+'</b><span>'+esc(e.label)+'</span></button>'}).join('')+'</div>':'')
