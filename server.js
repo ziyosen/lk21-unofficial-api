@@ -1,4 +1,6 @@
 const express = require("express");
+const cheerio = require("cheerio");
+const { ambil } = require("./scrapper/fetcher");;
 const cors = require("cors");
 const morgan = require("morgan");
 require("dotenv").config();
@@ -41,6 +43,79 @@ app.use(cors());
 if (process.env.NODE_ENV !== "production") {
     app.use(morgan("dev"));
 }
+
+
+// ===== HLS PLAY (proxy streaming) =====
+const http = require("http");
+const https = require("https");
+
+app.get("/movies/:slug/play", async (req, res) => {
+    try {
+        const page = await ambil(`${process.env.LK21_BASE_MOVIE}${req.params.slug}`);
+        const $ = cheerio.load(page.data);
+        const iframe = $("iframe#main-player").attr("src");
+        if (!iframe) return res.status(404).json({ status: false, message: "Player tidak ditemukan" });
+        const m = /\/iframe3\/([a-z0-9]+)\/([A-Za-z0-9_-]+)/.exec(iframe);
+        if (!m) return res.status(404).json({ status: false, message: "ID player tidak terbaca" });
+        const [, host, id] = m;
+        // 1) embedUrl dari videonode api.php
+        const embedRes = await fetch("https://videonode.de/api.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded", "Referer": iframe, "User-Agent": "Mozilla/5.0" },
+            body: `host=${host}&id=${id}`
+        });
+        const embedJson = await embedRes.json();
+        const embed = embedJson.embedUrl;
+        if (!embed) return res.status(502).json({ status: false, message: "embedUrl kosong" });
+        // 2) verify → fileUrl
+        const slug2 = new URL(embed).pathname.split("/").filter(Boolean).pop();
+        const ver = await fetch("https://playcdn.de/verify/" + encodeURIComponent(slug2), { headers: { "Referer": embed, "User-Agent": "Mozilla/5.0" } });
+        const verJson = await ver.json();
+        if (!verJson.fileUrl) return res.status(502).json({ status: false, message: "fileUrl kosong" });
+        res.json({ status: true, title: verJson.title, poster: verJson.poster, hls: "/hls?u=" + encodeURIComponent(verJson.fileUrl) });
+    } catch (err) {
+        res.status(500).json({ status: false, message: err.message });
+    }
+});
+
+// Proxy HLS: rewrite playlist agar segmen lewat kita juga
+app.get("/hls", async (req, res) => {
+    const u = req.query.u;
+    if (!u || !/^https?:\/\//.test(u)) return res.status(400).end("bad url");
+    try {
+        const r = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0", "Referer": "https://playcdn.de/" } });
+        const ct = r.headers.get("content-type") || "";
+        if (u.includes(".m3u8") || ct.includes("mpegurl")) {
+            let txt = await r.text();
+            const base = new URL(u);
+            txt = txt.split("\n").map(line => {
+                const t = line.trim();
+                if (!t || t.startsWith("#")) {
+                    // rewrite URI="..." di tag
+                    return line.replace(/URI="([^"]+)"/g, (_, x) => 'URI="/hls?u=' + encodeURIComponent(new URL(x, base).toString()) + '"');
+                }
+                return "/hls?u=" + encodeURIComponent(new URL(t, base).toString());
+            }).join("\n");
+            res.set("Content-Type", "application/vnd.apple.mpegurl");
+            res.set("Cache-Control", "no-store");
+            return res.send(txt);
+        }
+        // segmen binary → pipe
+        const upstream = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0", "Referer": "https://playcdn.de/" } });
+        res.set("Content-Type", upstream.headers.get("content-type") || "video/mp2t");
+        res.set("Cache-Control", "public, max-age=86400");
+        const reader = upstream.body.getReader();
+        req.on("close", () => reader.cancel().catch(()=>{}));
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (!res.write(value)) { await new Promise(ok => res.once("drain", ok)); }
+        }
+        res.end();
+    } catch (err) {
+        res.status(502).end("proxy error: " + err.message);
+    }
+});
 
 // Front end statis
 app.use(express.static(__dirname + "/public"));

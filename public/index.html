@@ -62,6 +62,7 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:26px}
   </div>
 </main>
 <div id="detail"><button class="close" onclick="closeDetail()">✕</button><div class="sheet" id="sheet"></div></div>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
 <footer>By: ZeinthHub Project · Powered by LK21 Unofficial API</footer>
 <script>
 const API = window.CINE_API || (location.origin.includes('vercel') ? location.origin : 'http://localhost:8000');
@@ -154,20 +155,63 @@ async function openDetail(slug){
     <div class="hero">
       <img src="${esc(m.image)}" onerror="this.style.visibility='hidden'">
       <div style="flex:1;min-width:220px">
+        <button onclick="playMovie('${esc(m.slug)}')" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:12px 26px;font-weight:800;cursor:pointer;font-size:15px;margin-bottom:12px">▶️ PUTAR</button>
         <h2>${esc(m.title)} ${m.year&&m.year!=='N/A'?`<small style="color:var(--muted)">(${esc(m.year)})</small>`:''}</h2>
         <div class="sub">${[m.rating&&'★ '+m.rating, m.quality, m.duration, m.country, m.release].filter(x=>x&&x!=='N/A').map(esc).join(' · ')}</div>
         <div>${(Array.isArray(m.genres)?m.genres:String(m.genres||'').split(',')).map(g=>`<span class="tag">${esc(g.trim())}</span>`).join('')}</div>
         ${m.directors&&m.directors.length?`<div class="sub" style="margin-top:10px">🎬 Sutradara: ${m.directors.map(esc).join(', ')}</div>`:''}
         ${m.stars&&m.stars.length?`<div class="sub">🌟 ${m.stars.map(esc).join(', ')}</div>`:''}
         <div class="syn">${esc(m.synopsis)}</div>
-        ${(m.stream||[]).length?`<div style="margin-top:16px">${m.stream.map((s2,i)=>`<a href="${esc(s2.href)}" target="_blank" rel="noopener" style="display:inline-block;background:var(--accent);color:#fff;border-radius:8px;padding:10px 18px;font-weight:700;text-decoration:none;margin:4px 6px 0 0">▶️ ${esc(s2.text||'Player '+(i+1))}</a>`).join('')}</div>`:'<div class="sub" style="margin-top:12px">Belum ada sumber player 😔</div>'}
+        <div id="playerbox" style="display:none;margin-top:16px">
+          <video id="vid" controls autoplay playsinline style="width:100%;aspect-ratio:16/9;border-radius:10px;background:#000"></video>
+          <div id="vstatus" class="sub" style="margin-top:8px"></div>
+        </div>
+        <div id="playbtns" style="margin-top:14px"></div>
       </div>
     </div>`;
   }catch(e){
     s.innerHTML = `<div class="empty">Gagal memuat detail: ${esc(e.message)}</div>`;
   }
 }
-function closeDetail(){document.getElementById('detail').style.display='none'}
+let hlsInst = null;
+function stopVideo(){
+  if (hlsInst) { hlsInst.destroy(); hlsInst = null; }
+  const v = document.getElementById('vid');
+  if (v) { v.pause(); v.removeAttribute('src'); v.load(); }
+}
+async function playMovie(slug){
+  const box = document.getElementById('playerbox'), st = document.getElementById('vstatus'), btns = document.getElementById('playbtns');
+  box.style.display='block'; st.textContent='⏳ Menyiapkan sumber video...';
+  btns.innerHTML='';
+  stopVideo();
+  box.scrollIntoView({behavior:'smooth'});
+  try{
+    const j = await jget(`/movies/${slug}/play`);
+    const v = document.getElementById('vid');
+    st.textContent = '';
+    if (hlsInst) { hlsInst.destroy(); hlsInst=null; }
+    if (v.canPlayType('application/vnd.apple.mpegurl')) {
+      v.src = j.hls;
+      v.play().catch(()=>{});
+    } else if (window.Hls && Hls.isSupported()) {
+      hlsInst = new Hls({ maxBufferLength: 30 });
+      hlsInst.loadSource(j.hls);
+      hlsInst.attachMedia(v);
+      hlsInst.on(Hls.Events.MANIFEST_PARSED, ()=>v.play().catch(()=>{}));
+      hlsInst.on(Hls.Events.ERROR, (_, data)=>{
+        if (data.fatal) st.textContent = '⚠️ Gagal memutar sumber ini (' + data.type + '). Coba lagi / film lain.';
+      });
+    } else {
+      st.textContent = 'Browser tidak mendukung HLS 😕';
+    }
+  }catch(e){
+    st.textContent = '⚠️ Gagal menyiapkan video: ' + e.message;
+  }
+}
+function closeDetail(){
+  document.getElementById('detail').style.display='none';
+  stopVideo();
+}
 document.getElementById('detail').addEventListener('click', e=>{if(e.target.id==='detail')closeDetail()});
 renderTabs();load();
 </script>
