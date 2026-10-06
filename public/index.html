@@ -310,7 +310,9 @@ function renderDetail(m,eps,isSeries,slug){
   var titleClean=String(m.title||'').replace(/\s*\((\d{4})\)\s*$/,'').trim();
   var yshow=yr(m)||(String(m.title||'').match(/\((\d{4})\)\s*$/)?String(m.title).match(/\((\d{4})\)\s*$/)[1]:'');
   var html='<button class="mclose" onclick="closeDetail()" aria-label="Tutup">✕</button>'
-    +'<div id="vwrap"><video id="vid" controls playsinline></video></div><div class="vinfo">'
+    +'<div id="vwrap" style="display:none;position:relative"><video id="vid" controls playsinline poster="'+img(m)+'"></video>'
+    +'<div id="bigplay" onclick="this.style.display=\'none\';document.getElementById(\'vid\').play()" style="position:absolute;inset:0;display:grid;place-items:center;cursor:pointer;background:rgba(0,0,0,.25);border-radius:0">'
+    +'<div style="width:64px;height:64px;border-radius:50%;background:var(--grad);display:grid;place-items:center;box-shadow:0 10px 30px rgba(0,0,0,.6)"><svg width="26" height="26" viewBox="0 0 24 24" fill="#fff" style="margin-left:3px"><path d="M8 5v14l11-7z"/></svg></div></div></div>'
     +'<h2>'+esc(titleClean)+(yshow?' <span style="color:var(--tx2);font-weight:500">('+esc(yshow)+')</span>':'')+'</h2>'
     +'<div class="vmeta">'+(rt(m)?'<span class="star">★ '+rt(m)+'</span>':'')+(m.quality?'<span class="pill hd">'+esc(m.quality)+'</span>':'')
     +(m.duration?'<span>'+esc(m.duration)+'</span>':'')+(m.country&&m.country!=='N/A'?'<span>'+esc(m.country)+'</span>':'')+'</div>'
@@ -320,7 +322,7 @@ function renderDetail(m,eps,isSeries,slug){
     +'<button class="vact" onclick="doShare(\''+esc(slug)+'\')">'+ICONS.share+'Share</button>'
     +'<button class="vact'+(saved?' on':'')+'" id="aSave" onclick="doSave(\''+esc(slug)+'\')">'+ICONS.bookmark+'Save</button></div>'
     +'<div class="ratebox" id="ratebox"><span>Rating kamu:</span>'+[1,2,3,4,5].map(function(i){return '<button data-n="'+i+'" aria-label="Beri rating '+i+'" onclick="rateSlug(\''+esc(slug)+'\','+i+')">★</button>'}).join('')+'</div>'
-    +'<div style="margin-top:13px"><button class="bplay" style="width:100%;justify-content:center;padding:13px;background:var(--grad);color:#fff;box-shadow:0 8px 22px rgba(249,115,22,.35)" onclick="playMovie(\''+esc(isSeries&&eps.length?eps[0].href.split('/').join(''):slug)+'\')">'+ICONS.play+(isSeries?' Putar Episode 1':' Putar Sekarang')+'</button></div>'
+    +'<div style="margin-top:13px"><button class="bplay" id="btnplay" style="width:100%;justify-content:center;padding:13px;background:var(--grad);color:#fff;box-shadow:0 8px 22px rgba(249,115,22,.35)" onclick="playMovie(\''+esc(isSeries&&eps.length?eps[0].href.split('/').join(''):slug)+'\')">'+ICONS.play+(isSeries?' Putar Episode 1':' Putar Sekarang')+'</button></div>'
     +'<div class="vsyn clamp" id="syn">'+esc((m.synopsis&&/tidak menemukan trailer|memeriksa langsung di YouTube/i.test(m.synopsis))?'Sinopsis belum tersedia.':(m.synopsis||'Sinopsis belum tersedia.'))+'</div><button class="vmore" id="synbtn" onclick="togSyn()">Selengkapnya ▾</button>'
     +'<div class="vstatus" id="vstatus"></div>'
     +(eps.length?'<div class="eplist"><h3>📺 '+eps.length+' Episode</h3>'+eps.map(function(e,i){return '<button class="eitem" onclick="playMovie(\''+esc(e.href.split('/').join(''))+'\')"><b>'+(i+1)+'</b><span>'+esc(e.label)+'</span></button>'}).join('')+'</div>':'')
@@ -364,9 +366,12 @@ function doSave(slug){
   localStorage.setItem('cz_save',JSON.stringify(o));
 }
 function playMovie(slug){
-  var w=document.getElementById('vwrap'),st=document.getElementById('vstatus'),v=document.getElementById('vid');
+  var w=document.getElementById('vwrap'),st=document.getElementById('vstatus'),v=document.getElementById('vid'),pb=document.getElementById('bigplay');
   if(!w)return;
-  w.style.display='block';st.textContent='⏳ Menyiapkan sumber video…';w.scrollIntoView({behavior:'smooth',block:'start'});
+  w.style.display='block';
+  if(pb)pb.style.display='none'; /* hilangkan tombol besar saat mulai memutar */
+  var bp=document.getElementById('btnplay'); if(bp)bp.style.display='none';
+  st.textContent='⏳ Menyiapkan sumber video…';w.scrollIntoView({behavior:'smooth',block:'start'});
   if(hlsInst){try{hlsInst.destroy()}catch(e){}hlsInst=null}
   jget('/movies/'+slug+'/play').then(function(j){
     st.textContent='▶ '+(j.title||'');
