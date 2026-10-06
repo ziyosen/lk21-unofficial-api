@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CineZone — Nonton Film & Series</title>
+<meta property="og:title" content="CineZone">
+<meta property="og:description" content="Katalog film & series — powered by LK21 Unofficial API">
+<style>
+:root{--bg:#0b0e14;--card:#141824;--accent:#f97316;--text:#e7e9ee;--muted:#8b93a7}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif}
+header{position:sticky;top:0;z-index:10;background:rgba(11,14,20,.92);backdrop-filter:blur(8px);border-bottom:1px solid #1f2536;padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.logo{font-weight:800;font-size:20px;color:var(--accent);letter-spacing:-.5px}
+.logo span{color:var(--text)}
+#q{flex:1;min-width:180px;background:var(--card);border:1px solid #262d42;border-radius:10px;padding:10px 14px;color:var(--text);font-size:15px;outline:none}
+#q:focus{border-color:var(--accent)}
+main{max-width:1280px;margin:0 auto;padding:16px}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding:4px 0 14px}
+.tabs button{background:var(--card);border:1px solid #262d42;color:var(--muted);border-radius:20px;padding:8px 16px;font-size:14px;cursor:pointer;white-space:nowrap}
+.tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px}
+.card{background:var(--card);border-radius:12px;overflow:hidden;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.card:hover{transform:translateY(-4px);box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.poster{position:relative;aspect-ratio:2/3;background:#1c2233}
+.poster img{width:100%;height:100%;object-fit:cover;display:block}
+.badge{position:absolute;background:rgba(0,0,0,.75);border-radius:6px;padding:2px 7px;font-size:11px}
+.badge.rate{top:8px;left:8px;color:#fbbf24;font-weight:700}
+.badge.qual{top:8px;right:8px;color:#4ade80;font-weight:600}
+.info{padding:10px}
+.info h3{font-size:13.5px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.meta{margin-top:5px;font-size:11.5px;color:var(--muted)}
+.pager{display:flex;gap:10px;justify-content:center;align-items:center;padding:22px 0}
+.pager button{background:var(--card);border:1px solid #262d42;color:var(--text);border-radius:8px;padding:9px 18px;cursor:pointer}
+.pager button:disabled{opacity:.35;cursor:default}
+.pager span{color:var(--muted);font-size:14px}
+#detail{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;z-index:50;overflow-y:auto}
+#detail .sheet{max-width:900px;margin:40px auto;background:var(--card);border-radius:16px;overflow:hidden}
+#detail .hero{display:flex;gap:20px;padding:24px;flex-wrap:wrap}
+#detail .hero img{width:200px;border-radius:10px;flex-shrink:0}
+#detail h2{font-size:22px;margin-bottom:8px}
+#detail .sub{color:var(--muted);font-size:13.5px;margin-bottom:6px}
+#detail .syn{margin-top:12px;font-size:14px;line-height:1.6;color:#c6cbd8}
+#detail .tag{display:inline-block;background:#1f2536;border-radius:6px;padding:3px 9px;font-size:12px;margin:3px 4px 0 0;color:#aeb6c9}
+#detail .close{position:fixed;top:16px;right:16px;background:var(--accent);color:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer;z-index:60}
+.empty{text-align:center;color:var(--muted);padding:60px 20px;font-size:15px}
+.spin{margin:50px auto;width:36px;height:36px;border:3px solid #262d42;border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+footer{text-align:center;color:var(--muted);font-size:12px;padding:26px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Cine<span>Zone</span></div>
+  <input id="q" placeholder="🔍 Cari film / series..." autocomplete="off">
+</header>
+<main>
+  <div class="tabs" id="tabs"></div>
+  <div id="content"></div>
+  <div class="pager" id="pager" style="display:none">
+    <button id="prev">‹ Sebelumnya</button><span id="pginfo"></span><button id="next">Berikutnya ›</button>
+  </div>
+</main>
+<div id="detail"><button class="close" onclick="closeDetail()">✕</button><div class="sheet" id="sheet"></div></div>
+<footer>By: ZeinthHub Project · Powered by LK21 Unofficial API</footer>
+<script>
+const API = window.CINE_API || (location.origin.includes('vercel') ? location.origin : 'http://localhost:8000');
+const TABS = [
+  {id:'latest',  label:'🔥 Terbaru',        url:p=>`/movies/latest?page=${p}`},
+  {id:'series',  label:'📺 Series',         url:p=>`/series/genre/drama?page=${p}`},
+  {id:'genre',   label:'🎭 Genre',          url:p=>`/movies/genre/action?page=${p}`},
+  {id:'year',    label:'📅 2026',           url:p=>`/movies/year/2026?page=${p}`},
+  {id:'country', label:'🌍 Barat',          url:p=>`/movies/country/usa?page=${p}`},
+];
+let tab='latest', page=1, searchMode=false;
+
+function esc(s){return (s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}
+
+async function jget(u){
+  const r = await fetch(API+u);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return r.json();
+}
+
+function cards(items){
+  return items.map(m=>`
+  <div class="card" onclick="openDetail('${esc(m.slug)}')">
+    <div class="poster">
+      <img loading="lazy" src="${esc(m.images)}" onerror="this.style.display='none'">
+      ${m.rating&&m.rating!=='N/A'?`<span class="badge rate">★ ${esc(m.rating)}</span>`:''}
+      ${m.quality&&m.quality!=='N/A'?`<span class="badge qual">${esc(m.quality)}</span>`:''}
+    </div>
+    <div class="info"><h3>${esc(m.title)}</h3>
+    <div class="meta">${[m.year,m.genre].filter(x=>x&&x!=='N/A').map(esc).join(' · ')}</div></div>
+  </div>`).join('');
+}
+
+async function load(){
+  const c = document.getElementById('content');
+  c.innerHTML = '<div class="spin"></div>';
+  document.getElementById('pager').style.display='none';
+  try{
+    if(searchMode){
+      const d = await jget(`/search?s=${encodeURIComponent(tab)}&page=${page}`);
+      const r = d.results||[];
+      c.innerHTML = r.length ? `<div class="grid">${cards(r)}</div>` : `<div class="empty">Tidak ada hasil untuk "${esc(tab)}" 😕</div>`;
+      renderPager(d.total_pages||1);
+    }else{
+      const t = TABS.find(t=>t.id===tab);
+      const d = await jget(t.url(page));
+      const r = d.results||[];
+      c.innerHTML = r.length ? `<div class="grid">${cards(r)}</div>` : '<div class="empty">Belum ada data 🙏</div>';
+      renderPager(d.total_pages||1);
+    }
+  }catch(e){
+    c.innerHTML = `<div class="empty">Gagal memuat: ${esc(e.message)}<br><small>Coba lagi sebentar (proxy sedang sibuk)</small></div>`;
+  }
+}
+
+function renderPager(tp){
+  const p = document.getElementById('pager');
+  if(tp>1){p.style.display='flex';document.getElementById('pginfo').textContent=`Halaman ${page} / ${tp}`;}
+  document.getElementById('prev').disabled = page<=1;
+  document.getElementById('next').disabled = page>=tp;
+}
+
+function renderTabs(){
+  document.getElementById('tabs').innerHTML = TABS.map(t=>
+    `<button class="${t.id===tab&&!searchMode?'on':''}" onclick="pick('${t.id}')">${t.label}</button>`).join('');
+}
+function pick(id){tab=id;searchMode=false;page=1;document.getElementById('q').value='';renderTabs();load();}
+
+let sTimer;
+document.getElementById('q').addEventListener('input', e=>{
+  clearTimeout(sTimer);
+  sTimer = setTimeout(()=>{
+    const v = e.target.value.trim();
+    if(v){tab=v;searchMode=true;page=1;}
+    else{searchMode=false;tab='latest';page=1;}
+    renderTabs();load();
+  }, 550);
+});
+document.getElementById('prev').onclick = ()=>{if(page>1){page--;load();window.scrollTo(0,0)}};
+document.getElementById('next').onclick = ()=>{page++;load();window.scrollTo(0,0)};
+
+async function openDetail(slug){
+  const d = document.getElementById('detail');
+  const s = document.getElementById('sheet');
+  d.style.display='block'; s.innerHTML='<div class="spin"></div>';
+  try{
+    const j = await jget(`/movies/${slug}/stream`);
+    const m = j.result||{};
+    s.innerHTML = `
+    <div class="hero">
+      <img src="${esc(m.image)}" onerror="this.style.visibility='hidden'">
+      <div style="flex:1;min-width:220px">
+        <h2>${esc(m.title)} ${m.year&&m.year!=='N/A'?`<small style="color:var(--muted)">(${esc(m.year)})</small>`:''}</h2>
+        <div class="sub">${[m.rating&&'★ '+m.rating, m.quality, m.duration, m.country, m.release].filter(x=>x&&x!=='N/A').map(esc).join(' · ')}</div>
+        <div>${(m.genres||[]).map(g=>`<span class="tag">${esc(g)}</span>`).join('')}</div>
+        ${m.directors&&m.directors.length?`<div class="sub" style="margin-top:10px">🎬 Sutradara: ${m.directors.map(esc).join(', ')}</div>`:''}
+        ${m.stars&&m.stars.length?`<div class="sub">🌟 ${m.stars.map(esc).join(', ')}</div>`:''}
+        <div class="syn">${esc(m.synopsis)}</div>
+        ${m.player_iframe?`<p style="margin-top:14px"><a href="${esc(m.player_iframe)}" target="_blank" style="color:var(--accent);font-weight:700">▶️ Putar di player</a></p>`:''}
+      </div>
+    </div>`;
+  }catch(e){
+    s.innerHTML = `<div class="empty">Gagal memuat detail: ${esc(e.message)}</div>`;
+  }
+}
+function closeDetail(){document.getElementById('detail').style.display='none'}
+document.getElementById('detail').addEventListener('click', e=>{if(e.target.id==='detail')closeDetail()});
+renderTabs();load();
+</script>
+</body>
+</html>
