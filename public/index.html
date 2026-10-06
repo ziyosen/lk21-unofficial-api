@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>CineZone — Nonton Film & Series Sub Indo</title>
+<title>Zona Cinema — Nonton Film & Series Sub Indo</title>
 <meta name="theme-color" content="#0b0b0f">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -276,7 +276,7 @@ footer b{color:var(--acc);font-weight:800}
   <div class="navin">
     <div class="logo" onclick="go('home')">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm3 2v2h2V5H7zm8 0v2h2V5h-2zM7 19v2h2v-2H7zm8 0v2h2v-2h-2zM10 9.5v5l4.5-2.5L10 9.5z"/></svg>
-      Cine<b>Zone</b>
+      Zona<b>Cinema</b>
     </div>
     <div class="navlinks" id="navlinks"></div>
     <div class="spacer"></div>
@@ -290,7 +290,7 @@ footer b{color:var(--acc);font-weight:800}
 
 <main id="view"></main>
 <footer>
-  <div class="footlogo"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm3 2v2h2V5H7zm8 0v2h2V5h-2zM7 19v2h2v-2H7zm8 0v2h2v-2h-2zM10 9.5v5l4.5-2.5L10 9.5z"/></svg><span>Cine<b>Zone</b></span></div>
+  <div class="footlogo"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm3 2v2h2V5H7zm8 0v2h2V5h-2zM7 19v2h2v-2H7zm8 0v2h2v-2h-2zM10 9.5v5l4.5-2.5L10 9.5z"/></svg><span>Zona<b>Cinema</b></span></div>
   <div class="footcred">By: <b>ZeinthHub Project</b> · Powered by <b>@Bleszh</b></div>
 </footer>
 
@@ -398,7 +398,7 @@ function renderHero(){
     <div class="hero-in">
       <div class="hero-poster"><img src="${img(m)}" onerror="this.onerror=null;this.src='${PLACE}'"></div>
       <div class="hero-txt">
-        <div class="hero-tag">CineZone Original · Trending</div>
+        <div class="hero-tag">Zona Cinema Original · Trending</div>
         <h1>${esc(m.title)||'Memuat...'}</h1>
         <div class="hero-meta">
           ${rt(m)?`<span class="rating-ico" style="color:var(--gold)">${ICO.star}${rt(m)}</span>`:''}
@@ -407,7 +407,7 @@ function renderHero(){
           ${m.duration?`<span>${esc(m.duration)}</span>`:''}
           <span class="dot"></span><span>${esc(m.genre||'Film')}</span>
         </div>
-        <div class="hero-syn">${esc(m.synopsis||'Klik putar untuk mulai menonton. Ribuan film & series siap ditonton langsung di CineZone.')}</div>
+        <div class="hero-syn">${esc(m.synopsis||'Klik putar untuk mulai menonton. Ribuan film & series siap ditonton langsung di Zona Cinema.')}</div>
         <div class="hero-btns">
           <button class="btn-play" onclick="openDetail('${esc(m.slug)}')"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Putar</button>
           <button class="btn-info" onclick="openDetail('${esc(m.slug)}')">ⓘ Info Selengkapnya</button>
@@ -660,7 +660,7 @@ async function shareCurrent(){
   const c=window.__curDetail; if(!c) return;
   const url=location.origin+location.pathname+'#'+c.slug;
   try{
-    if(navigator.share){ await navigator.share({title:'CineZone — '+c.title, url}); }
+    if(navigator.share){ await navigator.share({title:'Zona Cinema — '+c.title, url}); }
     else { await navigator.clipboard.writeText(url); showToast('Link tersalin, tinggal tempel buat dibagikan.'); }
   }catch(e){ /* user membatalkan share */ }
 }
