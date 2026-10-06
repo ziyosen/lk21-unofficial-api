@@ -319,7 +319,7 @@ footer b{color:var(--acc);font-weight:800}
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
 <script>
 /* ================= CONFIG ================= */
-const API = window.CINE_API || (location.origin.includes('vercel') ? location.origin : 'http://localhost:8000');
+const API = window.CINE_API || (location.protocol === 'http:' && location.hostname === 'localhost' ? 'http://localhost:8000' : location.origin);
 const NAV = [
   {id:'home',    label:'Beranda'},
   {id:'series',  label:'Series'},
