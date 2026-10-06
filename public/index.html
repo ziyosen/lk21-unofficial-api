@@ -46,6 +46,9 @@ main{max-width:1200px;margin:0 auto;padding:18px 16px 40px}
 .info{padding:10px 11px 12px}
 .info h3{font-size:13.5px;font-weight:700;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px}
 .meta{margin-top:5px;font-size:11.5px;color:var(--mut);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.panel{display:flex;flex-wrap:wrap;gap:10px;padding:6px 0}
+.pitem{background:var(--card);border:1.5px solid var(--bord);color:var(--text);border-radius:12px;padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
+.pitem:hover{border-color:var(--acc);color:var(--acc);transform:translateY(-2px)}
 /* PAGER */
 .pager{display:flex;gap:10px;justify-content:center;align-items:center;padding:24px 0 6px}
 .pager button{background:var(--card);border:1.5px solid var(--bord);color:var(--text);border-radius:10px;padding:9px 20px;cursor:pointer;font-weight:600}
@@ -92,11 +95,12 @@ const API = window.CINE_API || (location.origin.includes('vercel') ? location.or
 const TABS = [
   {id:'latest',  label:'🔥 Terbaru',        url:p=>`/movies/latest?page=${p}`},
   {id:'series',  label:'📺 Series',         url:p=>`/series/genre/drama?page=${p}`},
-  {id:'genre',   label:'🎭 Genre',          url:p=>`/movies/genre/action?page=${p}`},
   {id:'year',    label:'📅 2026',           url:p=>`/movies/year/2026?page=${p}`},
-  {id:'country', label:'🌍 Barat',          url:p=>`/movies/country/usa?page=${p}`},
+  {id:'genre',   label:'🎭 Genre',          panel:'/movies/genres',  item:p=>`/movies/genre/`},
+  {id:'country', label:'🌍 Negara',         panel:'/movies/countries', item:p=>`/movies/country/`},
 ];
-let tab='latest', page=1, searchMode=false;
+let tab='latest', page=1, searchMode=false, panelList=null;
+let pickItem=null;
 
 /* tema */
 const tbtn=document.getElementById('themeBtn');
@@ -128,7 +132,20 @@ async function load(){
   c.innerHTML='<div class="spin"></div>';
   document.getElementById('pager').style.display='none';
   try{
-    const url = searchMode? `/search?s=${encodeURIComponent(tab)}&page=${page}` : TABS.find(t=>t.id===tab).url(page);
+    const t = TABS.find(t=>t.id===tab);
+    if(!searchMode && t.panel && !pickItem){
+      // panel daftar genre/negara
+      if(!panelList || panelList.for!==t.id){
+        const pd = await jget(t.panel);
+        // dedupe by href
+        const seen = new Set();
+        panelList = {for:t.id, items:(pd.results||[]).filter(x=>!seen.has(x.href)&&seen.add(x.href))};
+      }
+      c.innerHTML = `<div class="panel">${panelList.items.map(x=>
+        `<button class="pitem" onclick="pickFromPanel('${esc(x.href)}')">${esc(x.name)}</button>`).join('')}</div>`;
+      return;
+    }
+    const url = searchMode? `/search?s=${encodeURIComponent(tab)}&page=${page}` : (pickItem? t.item(page)+pickItem+`?page=${page}` : t.url(page));
     const d = await jget(url);
     const r = d.results||[];
     c.innerHTML = r.length? `<div class="grid">${cards(r)}</div>` : `<div class="empty">${searchMode?`Tidak ada hasil untuk "${esc(tab)}" 😕`:'Belum ada data 🙏'}</div>`;
@@ -144,11 +161,12 @@ function renderTabs(){
   document.getElementById('tabs').innerHTML=TABS.map(t=>
     `<button class="${t.id===tab&&!searchMode?'on':''}" onclick="pick('${t.id}')">${t.label}</button>`).join('');
 }
-function pick(id){tab=id;searchMode=false;page=1;document.getElementById('q').value='';renderTabs();load();window.scrollTo(0,0)}
+function pick(id){tab=id;searchMode=false;page=1;pickItem=null;document.getElementById('q').value='';renderTabs();load();window.scrollTo(0,0)}
+function pickFromPanel(href){pickItem=href;page=1;load();window.scrollTo(0,0)}
 let sT;document.getElementById('q').addEventListener('input',e=>{
   clearTimeout(sT);
   sT=setTimeout(()=>{const v=e.target.value.trim();
-    if(v){tab=v;searchMode=true;page=1}else{searchMode=false;tab='latest';page=1}
+    if(v){tab=v;searchMode=true;page=1;pickItem=null}else{searchMode=false;tab='latest';page=1;pickItem=null}
     renderTabs();load();},550);
 });
 document.getElementById('prev').onclick=()=>{if(page>1){page--;load();window.scrollTo(0,0)}};

@@ -23,6 +23,8 @@ async function searchMovie(params, page = 1) {
                 slug: m.slug,
                 title: m.title,
                 year: (m.slug.match(/-(\d{4})$/) || [])[1] || "",
+                /* images: dipakai front end; image: kompatibilitas lama */
+                images: m.poster ? "https://poster.assetsy.de/wp-content/uploads/" + m.poster : null,
                 image: m.poster ? "https://poster.assetsy.de/wp-content/uploads/" + m.poster : null,
                 quality: m.quality || "N/A",
                 rating: m.rating || "N/A",
