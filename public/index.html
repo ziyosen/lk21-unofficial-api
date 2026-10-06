@@ -156,11 +156,11 @@ async function openDetail(slug){
       <div style="flex:1;min-width:220px">
         <h2>${esc(m.title)} ${m.year&&m.year!=='N/A'?`<small style="color:var(--muted)">(${esc(m.year)})</small>`:''}</h2>
         <div class="sub">${[m.rating&&'★ '+m.rating, m.quality, m.duration, m.country, m.release].filter(x=>x&&x!=='N/A').map(esc).join(' · ')}</div>
-        <div>${(m.genres||[]).map(g=>`<span class="tag">${esc(g)}</span>`).join('')}</div>
+        <div>${(Array.isArray(m.genres)?m.genres:String(m.genres||'').split(',')).map(g=>`<span class="tag">${esc(g.trim())}</span>`).join('')}</div>
         ${m.directors&&m.directors.length?`<div class="sub" style="margin-top:10px">🎬 Sutradara: ${m.directors.map(esc).join(', ')}</div>`:''}
         ${m.stars&&m.stars.length?`<div class="sub">🌟 ${m.stars.map(esc).join(', ')}</div>`:''}
         <div class="syn">${esc(m.synopsis)}</div>
-        ${m.player_iframe?`<p style="margin-top:14px"><a href="${esc(m.player_iframe)}" target="_blank" style="color:var(--accent);font-weight:700">▶️ Putar di player</a></p>`:''}
+        ${(m.stream||[]).length?`<div style="margin-top:16px">${m.stream.map((s2,i)=>`<a href="${esc(s2.href)}" target="_blank" rel="noopener" style="display:inline-block;background:var(--accent);color:#fff;border-radius:8px;padding:10px 18px;font-weight:700;text-decoration:none;margin:4px 6px 0 0">▶️ ${esc(s2.text||'Player '+(i+1))}</a>`).join('')}</div>`:'<div class="sub" style="margin-top:12px">Belum ada sumber player 😔</div>'}
       </div>
     </div>`;
   }catch(e){
