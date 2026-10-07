@@ -330,10 +330,18 @@ app.get("/series/:slug/stream", async (req, res) => {
 
 app.get("/series/:slug/", async (req, res) => {
     try {
+        /* Cache TTL 30 menit per slug — jangan fetch ulang ke sumber
+           setiap kali judul yang sama dibuka (jangan agresif ke sumber). */
+        if (!global.__zonaSeriesCache) global.__zonaSeriesCache = new Map();
+        const cached = global.__zonaSeriesCache.get(req.params.slug);
+        if (cached && Date.now() - cached.ts < 30 * 60 * 1000) {
+            return res.json({ status: true, developers: Developers, result: cached.data, cached: true });
+        }
         const detail = await getEpisode(req.params.slug);
         if (!detail) {
             return res.status(404).json({ status: false, developers: Developers, message: "Series not found" });
         }
+        global.__zonaSeriesCache.set(req.params.slug, { ts: Date.now(), data: detail });
         res.json({ status: true, developers: Developers, result: detail });
     } catch (err) {
         res.status(500).json({ status: false, developers: Developers, message: err.message });
