@@ -142,7 +142,7 @@ async function getEpisode(idSeries) {
             const stem = contoh.replace(/-season-\d+-episode-\d+-\d{4}$/i, "");
             const mTerbaru = /Season\s+(\d+)\s+Episode\s+(\d+)/i.exec(String(terbaru || ""));
             const halamanDibuka = new Set();
-            const maksBuka = 14;
+            const maksBuka = 40;
             function gabungkan(daftar) {
                 const gabung = new Map(episodes.map(e => [e.href, e]));
                 (daftar || []).filter(e => e.href.startsWith(stem)).forEach(e => gabung.set(e.href, e));
@@ -172,7 +172,7 @@ async function getEpisode(idSeries) {
                 let setAda = ada();
                 const hilang = [];
                 for (let e = 1; e <= maks; e++) if (!setAda.has(e)) hilang.push(e);
-                for (const e of hilang.slice(0, 12)) {
+                for (const e of hilang.slice(0, maks)) {
                     const kandidat = slugEp(s, e);
                     const html = await bukaGrid(kandidat);
                     if (html && html.includes(kandidat.replace(/^\//, "")) && !ada().has(e)) {
