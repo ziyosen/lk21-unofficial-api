@@ -131,28 +131,54 @@ async function getEpisode(idSeries) {
         let episodes = kumpulkanEpisode($, response.data);
         let infoSeason = nomorSeasonDari(teksHalaman, episodes);
 
-        /* Lengkapi grid: buka halaman episode perwakilan untuk season
-           yang episode-nya belum lengkap/ketemu. Pola slug episode
-           ditiru dari episode yang sudah ketemu. */
+        /* Lengkapi grid SAMPAI TIDAK ADA NOMOR BOLONG di tiap season.
+           Halaman series sering hanya menautkan episode pertama +
+           terbaru (mis. 1,2,6) — sisanya ada di grid halaman episode.
+           Bila sesudah membuka halaman perwakilan masih bolong, nomor
+           yang hilang dibuka satu per satu dan hanya diterima bila
+           halaman itu benar-benar memuat slug episode tsb. */
         if (episodes.length) {
             const contoh = episodes[0].href;
-            const perSeason = {};
-            episodes.forEach(e => { (perSeason[e.season] ||= []).push(e); });
+            const stem = contoh.replace(/-season-\d+-episode-\d+-\d{4}$/i, "");
+            const mTerbaru = /Season\s+(\d+)\s+Episode\s+(\d+)/i.exec(String(terbaru || ""));
             const halamanDibuka = new Set();
-            for (const s of infoSeason.daftar) {
-                const sudah = perSeason[s] || [];
-                if (sudah.length > 2) continue;
-                const kandidat = contoh.replace(/-season-\d+-episode-\d+-/, `-season-${s}-episode-1-`);
-                if (halamanDibuka.has(kandidat) || halamanDibuka.size >= 6) continue;
-                halamanDibuka.add(kandidat);
+            const maksBuka = 14;
+            function gabungkan(daftar) {
+                const gabung = new Map(episodes.map(e => [e.href, e]));
+                (daftar || []).filter(e => e.href.startsWith(stem)).forEach(e => gabung.set(e.href, e));
+                episodes = [...gabung.values()].sort((a, b) => a.season - b.season || a.episode - b.episode);
+            }
+            async function bukaGrid(path) {
+                if (halamanDibuka.has(path) || halamanDibuka.size >= maksBuka) return "";
+                halamanDibuka.add(path);
                 try {
-                    const hal = await ambil(`${process.env.LK21_BASE_SERIES}${kandidat.replace(/^\//, "")}`);
+                    const hal = await ambil(`${process.env.LK21_BASE_SERIES}${String(path).replace(/^\//, "")}`);
                     const $e = cheerio.load(hal.data);
-                    const tambahan = kumpulkanEpisode($e, hal.data);
-                    const gabung = new Map(episodes.map(e => [e.href, e]));
-                    tambahan.forEach(e => gabung.set(e.href, e));
-                    episodes = [...gabung.values()].sort((a, b) => a.season - b.season || a.episode - b.episode);
-                } catch (e) { /* season itu tidak bisa dibuka: biarkan apa adanya */ }
+                    gabungkan(kumpulkanEpisode($e, hal.data));
+                    return String(hal.data || "");
+                } catch (e) { return ""; }
+            }
+            function slugEp(s, e) { return contoh.replace(/-season-\d+-episode-\d+-/, `-season-${s}-episode-${e}-`); }
+            for (const s of infoSeason.daftar) {
+                let epsS = episodes.filter(e => e.season === s);
+                if (!epsS.length) continue;
+                let maks = Math.max(...epsS.map(e => e.episode));
+                if (mTerbaru && parseInt(mTerbaru[1], 10) === s) maks = Math.max(maks, parseInt(mTerbaru[2], 10));
+                const ada = () => new Set(episodes.filter(e => e.season === s).map(e => e.episode));
+                if (ada().size < maks) {
+                    await bukaGrid(slugEp(s, 1));
+                    await bukaGrid(slugEp(s, maks));
+                }
+                let setAda = ada();
+                const hilang = [];
+                for (let e = 1; e <= maks; e++) if (!setAda.has(e)) hilang.push(e);
+                for (const e of hilang.slice(0, 12)) {
+                    const kandidat = slugEp(s, e);
+                    const html = await bukaGrid(kandidat);
+                    if (html && html.includes(kandidat.replace(/^\//, "")) && !ada().has(e)) {
+                        gabungkan([{ label: kandidat.split("/").pop(), href: kandidat, season: s, episode: e, judul: `S${s} E${e}` }]);
+                    }
+                }
             }
             infoSeason = nomorSeasonDari(teksHalaman, episodes);
         }
