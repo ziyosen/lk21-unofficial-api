@@ -57,6 +57,10 @@ function kumpulkanEpisode($, htmlMentah) {
     const re = /href="([^"]*-season-\d+-episode-\d+-\d{4})"/gi;
     let m;
     while ((m = re.exec(htmlMentah || "")) !== null) tambah(m[1]);
+    /* Grid lengkap juga tertanam sebagai JSON (window.__eps dsb.):
+       {"s":1,"episode_no":5,...,"slug":"<judul>-season-1-episode-5-<tahun>"} */
+    const reSlug = /"slug"\s*:\s*"([a-z0-9-]*-season-\d+-episode-\d+-\d{4})"/gi;
+    while ((m = reSlug.exec(String(htmlMentah || ""))) !== null) tambah("/" + m[1]);
     return [...ketemu.values()].sort((a, b) => a.season - b.season || a.episode - b.episode);
 }
 
