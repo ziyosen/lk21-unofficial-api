@@ -30,6 +30,13 @@ const {
  } = require("./scrapper/series");
 const app = express();
 const PORT = process.env.PORT || 3000;
+// Base publik untuk link HLS — kalau diisi (mis. https://bridge.xinquins.de5.net/lk21-api),
+// URL hls jadi ABSOLUT ke situ (VPS, tanpa timeout Vercel); kalau kosong tetap relatif.
+const HLS_PUBLIC_BASE = (process.env.HLS_PUBLIC_BASE || "").replace(/\/+$/, "");
+function hlsUrl(fileUrl) {
+    const path = "/hls?u=" + encodeURIComponent(fileUrl);
+    return HLS_PUBLIC_BASE ? HLS_PUBLIC_BASE + path : path;
+}
 
 // Developer info
 const Developers = {
@@ -94,7 +101,7 @@ app.get("/movies/:slug/play", async (req, res) => {
         const ver = await fetch("https://playcdn.de/verify/" + encodeURIComponent(slug2), { headers: { "Referer": embed, "User-Agent": "Mozilla/5.0" } });
         const verJson = await ver.json();
         if (!verJson.fileUrl) return res.status(502).json({ status: false, message: "fileUrl kosong" });
-        res.json({ status: true, title: verJson.title, poster: verJson.poster, hls: "/hls?u=" + encodeURIComponent(verJson.fileUrl) });
+        res.json({ status: true, title: verJson.title, poster: verJson.poster, hls: hlsUrl(verJson.fileUrl) });
     } catch (err) {
         res.status(500).json({ status: false, message: err.message });
     }
@@ -140,7 +147,9 @@ app.get("/hls", async (req, res) => {
         }
         // segmen binary → pipe
         const upstream = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0", "Referer": "https://playcdn.de/" } });
-        res.set("Content-Type", upstream.headers.get("content-type") || "video/mp2t");
+        const ctUp = upstream.headers.get("content-type") || "";
+        const isMpeg = /^G/i.test("") ; // fallback di bawah deteksi magic
+        res.set("Content-Type", (ctUp && !ctUp.includes("text/html")) ? ctUp : "video/mp2t");
         res.set("Cache-Control", "public, max-age=86400");
         const reader = upstream.body.getReader();
         req.on("close", () => reader.cancel().catch(()=>{}));
@@ -318,11 +327,49 @@ app.get("/series/year/:year", async (req, res) => {
 
 app.get("/series/:slug/stream", async (req, res) => {
     try {
-        const stream = await streamSeries(req.params.slug);
-        if (!stream) {
-            return res.status(404).json({ status: false, developers: Developers, message: "Series not found" });
+        const slug = req.params.slug;
+        const polaEp = /-season-(\d+)-episode-(\d+)-(\d{4})$/i;
+        const m = polaEp.exec(slug);
+        if (m) {
+            // slug EPISODE → resolve HLS langsung (pola sama dgn /movies/:slug/play)
+            let iframe = null;
+            const page = await ambil(`${process.env.LK21_BASE_SERIES}${slug}`);
+            const $p = cheerio.load(page.data);
+            iframe = $p("iframe#main-player").attr("src") || null;
+            if (!iframe) return res.status(404).json({ status: false, developers: Developers, message: "Player episode tidak ditemukan", result: { slug, hls: null } });
+            const mm = /\/iframe3\/([a-z0-9]+)\/([A-Za-z0-9_-]+)/.exec(iframe);
+            if (!mm) return res.status(404).json({ status: false, developers: Developers, message: "ID player tidak terbaca" });
+            const [, host, id] = mm;
+            const embedRes = await fetch("https://videonode.de/api.php", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded", "Referer": iframe, "User-Agent": "Mozilla/5.0" },
+                body: `host=${host}&id=${id}`
+            });
+            const embedJson = await embedRes.json();
+            const embed = embedJson.embedUrl;
+            if (!embed) return res.status(502).json({ status: false, developers: Developers, message: "embedUrl kosong" });
+            const slug2 = new URL(embed).pathname.split("/").filter(Boolean).pop();
+            const ver = await fetch("https://playcdn.de/verify/" + encodeURIComponent(slug2), { headers: { "Referer": embed, "User-Agent": "Mozilla/5.0" } });
+            const verJson = await ver.json();
+            if (!verJson.fileUrl) return res.status(502).json({ status: false, developers: Developers, message: "fileUrl kosong" });
+            return res.json({ status: true, developers: Developers, result: {
+                slug, season: parseInt(m[1],10), episode: parseInt(m[2],10),
+                title: verJson.title, poster: verJson.poster,
+                hls: hlsUrl(verJson.fileUrl)
+            }});
         }
-        res.json({ status: true, developers: Developers, result: stream });
+        // slug SERIES utama → info + daftar episode per season
+        const detail = await getEpisode(slug);
+        const episodes = [];
+        for (const eps of Object.values(detail.episodes_by_season || {})) {
+            for (const e of eps) episodes.push(e);
+        }
+        return res.json({ status: true, developers: Developers, result: {
+            slug, title: detail.title, image: detail.image,
+            season_count: detail.season_count,
+            episodes,
+            play_pattern: "/series/<slug-episode>/stream  →  result.hls"
+        }});
     } catch (err) {
         res.status(500).json({ status: false, developers: Developers, message: err.message });
     }
