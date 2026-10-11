@@ -126,7 +126,8 @@ app.get("/hls", async (req, res) => {
     if (!u || !/^https?:\/\//.test(u)) return res.status(400).end("bad url");
     // Anti-SSRF: hanya izinkan host video yang dipakai player (review sonnet-4.5)
     let h; try { h = new URL(u).hostname; } catch { return res.status(400).end("bad url"); }
-    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|^duck\.[a-z]+\.xyz$|(^|\.)bunny\.[a-z]+\.xyz$|(^|\.)qornexia\.xyz$/.test(h)) return res.status(403).end("host tidak diizinkan");
+    // CDN rotasi sumber memakai pola <hewan>.<brand>.xyz (duck/bunny/cat/... × qornexia/blaytoro/...)
+    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|^[a-z]+\.[a-z]+\.xyz$/.test(h)) return res.status(403).end("host tidak diizinkan");
     try {
         const r = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0", "Referer": "https://playcdn.de/" } });
         const ct = r.headers.get("content-type") || "";
