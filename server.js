@@ -149,8 +149,8 @@ app.get("/hls", async (req, res) => {
         // segmen binary → pipe
         const upstream = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0", "Referer": "https://playcdn.de/" } });
         const ctUp = upstream.headers.get("content-type") || "";
-        const isMpeg = /^G/i.test("") ; // fallback di bawah deteksi magic
-        res.set("Content-Type", (ctUp && !ctUp.includes("text/html")) ? ctUp : "video/mp2t");
+        // CDN balikin image/x-pict utk segmen TS — paksa video/mp2t biar player HP ketat tetap terima
+        res.set("Content-Type", ctUp.includes("pict") || ctUp.includes("text/html") ? "video/mp2t" : ctUp);
         res.set("Cache-Control", "public, max-age=86400");
         const reader = upstream.body.getReader();
         req.on("close", () => reader.cancel().catch(()=>{}));
