@@ -1,17 +1,32 @@
 [build]
   command = "npm install"
   functions = "functions"
+  publish = "public"
 
 [functions]
   node_bundler = "esbuild"
 
-[context.production.environment]
-  NODE_ENV = "production"
-  LK21_BASE_MOVIE = "https://tv12.lk21official.cc/"
-  LK21_BASE_SERIES = "https://tv9.nontondrama.my"
+[[redirects]]
+  from = "/api"
+  to = "/.netlify/functions/api"
+  status = 200
 
 [[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/api/:splat"
+  from = "/movies/*"
+  to = "/.netlify/functions/api/movies/:splat"
   status = 200
-  force = false
+
+[[redirects]]
+  from = "/series/*"
+  to = "/.netlify/functions/api/series/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/search"
+  to = "/.netlify/functions/api/search"
+  status = 200
+
+[[redirects]]
+  from = "/hls"
+  to = "/.netlify/functions/api/hls"
+  status = 200
