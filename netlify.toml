@@ -5,6 +5,11 @@
 [functions]
   node_bundler = "esbuild"
 
+[context.production.environment]
+  NODE_ENV = "production"
+  LK21_BASE_MOVIE = "https://tv12.lk21official.cc/"
+  LK21_BASE_SERIES = "https://tv9.nontondrama.my"
+
 [[redirects]]
   from = "/*"
   to = "/.netlify/functions/api/:splat"
