@@ -336,7 +336,7 @@ function esc(s){return String(s??'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;
 function img(m){return esc(m.images||m.image||PLACE)}
 function yr(m){return m.year&&m.year!=='N/A'?esc(m.year):''}
 function rt(m){return m.rating&&m.rating!=='N/A'&&m.rating!=='0'?esc(m.rating):''}
-async function jget(u){const r=await fetch(API+u);if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
+async function jget(u){const c=new AbortController();const t=setTimeout(()=>c.abort(),30000);try{const r=await fetch(API+u,{signal:c.signal});if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}catch(e){if(e&&e.name==='AbortError')throw new Error('waktu habis (30 detik)');throw e}finally{clearTimeout(t)}}
 function skel(n){return Array.from({length:n}).map(()=>`<div class="skcard"><div class="pw sk"></div><div class="sk" style="height:12px;margin-top:8px;width:80%"></div></div>`).join('')}
 const ICO = {
   star:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5L2.6 9.4l6.5-.9z"/></svg>',
@@ -673,13 +673,21 @@ async function playMovie(slug){
     const j=await jget(`/movies/${slug}/play`);
     st.textContent='▶ '+(j.title||'');
     if(hlsInst){try{hlsInst.destroy()}catch(e){}hlsInst=null}
-    if(v.canPlayType('application/vnd.apple.mpegurl')){v.src=j.hls;v.play().catch(()=>{})}
-    else if(window.Hls&&Hls.isSupported()){
-      hlsInst=new Hls({maxBufferLength:30,maxMaxBufferLength:60});
-      hlsInst.loadSource(j.hls);hlsInst.attachMedia(v);
-      hlsInst.on(Hls.Events.MANIFEST_PARSED,()=>v.play().catch(()=>{}));
-      hlsInst.on(Hls.Events.ERROR,(_,d)=>{if(d.fatal)st.textContent='Sumber bermasalah — klik Putar lagi atau coba judul lain.'});
-    }else st.textContent='Browser ini tidak mendukung pemutar HLS';
+    const srcDirect=j.direct||null, srcProxy=j.hls; let useDirect=false;
+    const startSrc=(u)=>{
+      if(v.canPlayType('application/vnd.apple.mpegurl')){v.src=u;v.play().catch(()=>{})}
+      else if(window.Hls&&Hls.isSupported()){
+        if(hlsInst){try{hlsInst.destroy()}catch(e){}hlsInst=null}
+        hlsInst=new Hls({maxBufferLength:60,maxMaxBufferLength:120,maxBufferSize:120*1024*1024,manifestLoadingMaxRetry:3,fragLoadingMaxRetry:6});
+        hlsInst.loadSource(u);hlsInst.attachMedia(v);
+        hlsInst.on(Hls.Events.MANIFEST_PARSED,()=>v.play().catch(()=>{}));
+        hlsInst.on(Hls.Events.ERROR,(_,d)=>{
+          if(d.fatal&&!useDirect&&srcDirect&&u!==srcDirect){useDirect=true;st.textContent='Coba langsung...';startSrc(srcDirect);}
+          else if(d.fatal)st.textContent='Sumber bermasalah — klik Putar lagi atau coba judul lain.';
+        });
+      }else st.textContent='Browser ini tidak mendukung pemutar HLS';
+    };
+    startSrc(srcProxy||srcDirect);
   }catch(e){
     st.textContent=e.message.indexOf('404')>=0
       ?'Judul/episode ini belum ada sumber playernya (biasanya rilis baru). Coba yang lain ya.'

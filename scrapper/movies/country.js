@@ -12,10 +12,13 @@ async function getCountriesMovies() {
         });
         const $ = cheerio.load(response.data);
         const countries = [];
-        $('a[href^="/country/"]').each((i, el) => {
+        const seen = new Set();
+        $('a[href*="/country/"]').each((i, el) => {
             const name = $(el).text().trim();
             const link = $(el).attr("href");
             const href = new URL(link, process.env.LK21_BASE_MOVIE).pathname.split('/').filter(Boolean).pop();;
+            if (seen.has(href)) return;
+            seen.add(href);
             countries.push({name, href});
         });
         return countries;

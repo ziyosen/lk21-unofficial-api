@@ -19,7 +19,7 @@ async function streamMovies(idmovies) {
                      image: null, quality: "N/A", rating: "N/A", duration: "N/A",
                      genres: [], country: "N/A", release: "N/A", stars: [], directors: [], stream: [] };
         }
-        const title = $("h1").first().text().trim() || "N/A";
+        const title = ($("h1").first().text().trim() || "N/A").replace(/\s+Sub Indo di Lk21\s*$/i, "").trim();
         const image =
             $('meta[property="og:image"]').attr("content") ||
             $('meta[itemprop="image"]').attr("content") ||
@@ -83,6 +83,24 @@ async function streamMovies(idmovies) {
             const text = $(el).text().trim();
             if (href) stream.push({ text, href });
         });
+        /* Provider streaming tema baru: sharer.link data.php (POST movie=slug, butuh Referer) */
+        try {
+            const dp = await fetch("https://sharer.link/data.php", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded", "Referer": (process.env.LK21_BASE_MOVIE || "") + idmovies },
+                body: new URLSearchParams({ movie: idmovies })
+            });
+            const dhtml = await dp.text();
+            if (dhtml && dhtml !== "none") {
+                const $d = cheerio.load(dhtml);
+                $d("a[href*=\"play-ads.php\"]").each(function (i, el) {
+                    const href2 = $d(el).attr("href");
+                    const text2 = $d(el).text().trim();
+                    if (href2) stream.push({ text: text2 || "Provider", href: href2 });
+                });
+            }
+        } catch (e) { /* provider opsional, abaikan */ }
+
 
         return {
             slug: idmovies,

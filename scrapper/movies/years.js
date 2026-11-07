@@ -12,10 +12,13 @@ async function getYearsMovies(){
         });
         const $ = cheerio.load(response.data);
         const years = [];
-        $('a[href^="/year/"]').each((i, el) => {
+        const seen = new Set();
+        $('a[href*="/year/"]').each((i, el) => {
             const name = $(el).text().trim();
             const link = $(el).attr("href");
             const href = new URL(link, process.env.LK21_BASE_MOVIE).pathname.split('/').filter(Boolean).pop();
+            if (seen.has(href)) return;
+            seen.add(href);
             years.push({name, href});
         });
         return years;
