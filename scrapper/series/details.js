@@ -2,195 +2,105 @@ const cheerio = require("cheerio");
 const { ambil } = require("../fetcher");
 require("dotenv").config();
 
-/* getEpisode (detail series): map struktur HTML tv9.
-   Perbaikan 2026-10-08 (Muse, untuk cross-review Hermes):
-   - Sinopsis dibersihkan: hanya isi sinopsisnya. Buang awalan
-     "Nonton <judul>,", potong di "Dibintangi oleh", dan buang ekor
-     promosi "hanya di Lk21 / Streaming kualitas HD subtitle Indonesia".
-   - Season TIDAK lagi diambil dari semua span.duration (itu ikut
-     membaca kartu series terkait -> S.5/S.13 palsu). Season diambil
-     dari pola "Season X dari Y", opsi pemilih season, dan nomor
-     season yang benar-benar ada di tautan episode.
-   - Episode dikumpulkan dari SEMUA tautan <a href> (relatif maupun
-     absolut), dinormalkan, lalu dilengkapi dengan membuka halaman
-     episode perwakilan tiap season (grid episode tinggal di sana).
-   - Field baru: season_count, episodes_by_season, votes, directors,
-     status, release. Field lama tetap dipertahankan. */
-
-function bersihSinopsis(teks, judul) {
-    if (!teks) return "N/A";
-    let s = String(teks).replace(/\s+/g, " ").trim();
-    s = s.replace(/^nonton\s+/i, "");
-    if (judul) {
-        const j = String(judul).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        s = s.replace(new RegExp("^" + j + "\\s*,?\\s*", "i"), "");
-    }
-    s = s.split(/\s+Dibintangi oleh\s+/i)[0];
-    s = s.split(/\s+hanya di\s+/i)[0];
-    s = s.replace(/Streaming kualitas HD subtitle Indonesia\.?/gi, "");
-    s = s.replace(/\s+di Lk21\b.*$/i, "");
-    s = s.trim();
-    if (s) s = s.charAt(0).toUpperCase() + s.slice(1);
-    return s || "N/A";
-}
-
-function kumpulkanEpisode($, htmlMentah) {
-    const ketemu = new Map();
-    const pola = /-season-(\d+)-episode-(\d+)-(\d{4})$/i;
-    function tambah(path) {
-        if (!path) return;
-        let bersih = String(path);
-        try { bersih = new URL(bersih, "https://tv9.nontondrama.my").pathname; } catch (e) {}
-        bersih = bersih.split("?")[0].replace(/\/$/, "");
-        const m = pola.exec(bersih);
-        if (!m) return;
-        const season = parseInt(m[1], 10), episode = parseInt(m[2], 10);
-        ketemu.set(bersih, {
-            label: bersih.split("/").pop(),
-            href: bersih,
-            season,
-            episode,
-            judul: `S${season} E${episode}`
-        });
-    }
-    $("a[href]").each((i, el) => tambah($(el).attr("href")));
-    const re = /href="([^"]*-season-\d+-episode-\d+-\d{4})"/gi;
-    let m;
-    while ((m = re.exec(htmlMentah || "")) !== null) tambah(m[1]);
-    /* Grid lengkap juga tertanam sebagai JSON (window.__eps dsb.):
-       {"s":1,"episode_no":5,...,"slug":"<judul>-season-1-episode-5-<tahun>"} */
-    const reSlug = /"slug"\s*:\s*"([a-z0-9-]*-season-\d+-episode-\d+-\d{4})"/gi;
-    while ((m = reSlug.exec(String(htmlMentah || ""))) !== null) tambah("/" + m[1]);
-    return [...ketemu.values()].sort((a, b) => a.season - b.season || a.episode - b.episode);
-}
-
-function nomorSeasonDari(teks, episodes) {
-    const himpunan = new Set(episodes.map(e => e.season));
-    const md = /Season\s+(\d+)\s+dari\s+(\d+)/i.exec(teks || "");
-    let total = md ? parseInt(md[2], 10) : 0;
-    if (himpunan.size) total = Math.max(total, ...himpunan);
-    const daftar = [];
-    for (let s = 1; s <= total; s++) daftar.push(s);
-    return { total: daftar.length, daftar };
-}
-
+/* getEpisode (detail series) — sumber lk21asia.com (tema GMR/muvipro).
+   Halaman show: /tv/<slug>/ — judul h1.entry-title, poster og:image,
+   meta di baris .gmr-moviedata (Genre/Tahun/Negara/Rilis/Jumlah Episode/
+   Direksi/Pemain/Tanggal Terakhir Mengudara), daftar episode di
+   .gmr-listseries dgn tautan /eps/<slug>-season-N-episode-N-YYYY/.
+   href episode disimpan satu segmen ("/<slug-episode>") supaya playSlug
+   frontend (href.split("/").join("")) jadi slug episode yang benar.
+   Bentuk balikan sama dgn getEpisode lama (tv9) supaya frontend & route
+   /series/:slug/stream tidak berubah. */
 async function getEpisode(idSeries) {
     try {
-        const url = `${process.env.LK21_BASE_SERIES}${idSeries}`;
+        const url = `${process.env.LK21_BASE_SERIES}tv/${idSeries}/`;
         const response = await ambil(url);
         const $ = cheerio.load(response.data);
-        const teksHalaman = $("body").text().replace(/\s+/g, " ");
-
-        let title = $("h1").first().text().trim() || "N/A";
-        if (/dialihkan/i.test(title)) {
-            const og = $('meta[property="og:title"]').attr("content") || "";
-            title = og.replace(/\s*[|\-–].*$/, "").trim() || "N/A";
+        const titleTag = ($("title").text() || "");
+        if (/tidak ditemukan|not found/i.test(titleTag)) {
+            throw new Error("Series tidak ditemukan: " + idSeries);
         }
-        const image =
-            $('meta[property="og:image"]').attr("content") ||
-            $("img[itemprop='image']").attr("src") || null;
-        const rating =
-            $("span[itemprop='ratingValue']").first().text().trim() ||
-            $(".rating-score").first().text().trim() || "N/A";
-        const genres =
-            $('meta[itemprop="genre"]').attr("content") ||
-            $("div.genre").first().text().trim() || "N/A";
+        const title = $("h1.entry-title").first().text().trim()
+            || $("h1").first().text().trim() || "N/A";
+        const image = $("meta[property=\"og:image\"]").attr("content")
+            || $("img[itemprop=\"image\"]").attr("src") || null;
+        let rating = $("span[itemprop=\"ratingValue\"]").first().text().trim() || "N/A";
+        if (rating === "N/A") {
+            const rtxt = $(".gmr-rating-item").first().text().trim();
+            const rm = rtxt.match(/[\d.]+/);
+            if (rm) rating = rm[0];
+        }
 
-        /* info <p><span>Label: </span>...</p> */
         const info = {};
-        $("p").each((i, el) => {
-            const label = $(el).find("span").first().text().trim().replace(/:$/, "");
+        $(".gmr-moviedata").each((i, el) => {
+            const label = $(el).find("strong").first().text().trim().replace(/:$/, "");
             if (!label) return;
             const links = [];
             $(el).find("a").each((j, a) => links.push($(a).text().trim()));
-            const teks = $(el).clone().children("span").remove().end().text().trim();
+            const teks = $(el).clone().children("strong").remove().end().text().trim().replace(/\s+/g, " ");
             if (links.length) info[label] = links.filter(Boolean);
             else if (teks) info[label] = teks;
         });
-
-        const stars = info["Bintang Film"] || [];
+        const genres = info["Genre"] ? (Array.isArray(info["Genre"]) ? info["Genre"].join(", ") : info["Genre"]) : "N/A";
         const country = Array.isArray(info["Negara"]) ? info["Negara"][0] : (info["Negara"] || "N/A");
-        const terbaruMentah = info["Terbaru"];
-        const terbaru = Array.isArray(terbaruMentah) ? terbaruMentah.join(", ") : (terbaruMentah || "N/A");
-        const directorsRaw = info["Sutradara"] || info["Director"] || [];
-        const directors = Array.isArray(directorsRaw) ? directorsRaw : String(directorsRaw).split(",").map(s => s.trim()).filter(Boolean);
+        const release = info["Rilis"] || "N/A";
+        const terbaru = info["Tanggal Terakhir Mengudara"] || "N/A";
+        const totalEpsMeta = info["Jumlah Episode"] ? parseInt(String(info["Jumlah Episode"]).replace(/\D/g, ""), 10) : null;
+        const directors = info["Direksi"] ? (Array.isArray(info["Direksi"]) ? info["Direksi"] : String(info["Direksi"]).split(",").map((s) => s.trim()).filter(Boolean)) : [];
+        const stars = info["Pemain"] ? (Array.isArray(info["Pemain"]) ? info["Pemain"] : String(info["Pemain"]).split(",").map((s) => s.trim()).filter(Boolean)) : [];
         const status = info["Status"] || "N/A";
-        const release = info["Diterbitkan"] || info["Tanggal Rilis"] || info["Rilis"] || "N/A";
-        const mv = /([\d][\d.]*)\s*(pengguna|votes|vote|penilai)/i.exec(teksHalaman);
-        const votes = info["Votes"] || info["Vote"] || (mv ? mv[1] : null);
+        const votes = null;
 
-        /* Sinopsis: p panjang yang bukan meta — pilih kandidat TERBAIK
-           (terpanjang), buang pemberitahuan/boilerplate situs */
         let synopsis = "N/A";
-        $("p").each((i, el) => {
+        /* Sinopsis asli tinggal di .entry-content-single (paragraf pertama).
+           Jangan pakai heuristik <p> terpanjang: footer situs punya
+           paragraf boilerplate ("Koleksi yang tersedia diperbarui..."). */
+        $(".entry-content-single p").each((i, el) => {
+            if (synopsis !== "N/A") return;
             const t = $(el).text().trim();
-            if (t.length > 80 &&
-                !/komentar|diskusi|Follow update|Jangan sampai ketinggalan|dialihkan|nontondrama|halaman tidak berganti|melaporkan kendala|telegram group/i.test(t)) {
-                if (synopsis === "N/A" || t.length > synopsis.length) synopsis = t;
+            if (t.length > 40 && !/lk21|subtitle|streaming online|tanpa buffering|\bnonton\b|koleksi yang tersedia|diperbarui secara berkala/i.test(t)) {
+                synopsis = t;
             }
         });
-        synopsis = bersihSinopsis(synopsis, title);
-
-        /* Episode dari halaman series */
-        let episodes = kumpulkanEpisode($, response.data);
-        let infoSeason = nomorSeasonDari(teksHalaman, episodes);
-
-        /* Lengkapi grid SAMPAI TIDAK ADA NOMOR BOLONG di tiap season.
-           Halaman series sering hanya menautkan episode pertama +
-           terbaru (mis. 1,2,6) — sisanya ada di grid halaman episode.
-           Bila sesudah membuka halaman perwakilan masih bolong, nomor
-           yang hilang dibuka satu per satu dan hanya diterima bila
-           halaman itu benar-benar memuat slug episode tsb. */
-        if (episodes.length) {
-            const contoh = episodes[0].href;
-            const stem = contoh.replace(/-season-\d+-episode-\d+-\d{4}$/i, "");
-            const mTerbaru = /Season\s+(\d+)\s+Episode\s+(\d+)/i.exec(String(terbaru || ""));
-            const halamanDibuka = new Set();
-            const maksBuka = 40;
-            function gabungkan(daftar) {
-                const gabung = new Map(episodes.map(e => [e.href, e]));
-                (daftar || []).filter(e => e.href.startsWith(stem)).forEach(e => gabung.set(e.href, e));
-                episodes = [...gabung.values()].sort((a, b) => a.season - b.season || a.episode - b.episode);
-            }
-            async function bukaGrid(path) {
-                if (halamanDibuka.has(path) || halamanDibuka.size >= maksBuka) return "";
-                halamanDibuka.add(path);
-                try {
-                    const hal = await ambil(`${process.env.LK21_BASE_SERIES}${String(path).replace(/^\//, "")}`);
-                    const $e = cheerio.load(hal.data);
-                    gabungkan(kumpulkanEpisode($e, hal.data));
-                    return String(hal.data || "");
-                } catch (e) { return ""; }
-            }
-            function slugEp(s, e) { return contoh.replace(/-season-\d+-episode-\d+-/, `-season-${s}-episode-${e}-`); }
-            for (const s of infoSeason.daftar) {
-                let epsS = episodes.filter(e => e.season === s);
-                if (!epsS.length) continue;
-                let maks = Math.max(...epsS.map(e => e.episode));
-                if (mTerbaru && parseInt(mTerbaru[1], 10) === s) maks = Math.max(maks, parseInt(mTerbaru[2], 10));
-                const ada = () => new Set(episodes.filter(e => e.season === s).map(e => e.episode));
-                if (ada().size < maks) {
-                    await bukaGrid(slugEp(s, 1));
-                    await bukaGrid(slugEp(s, maks));
+        if (synopsis === "N/A") {
+            $("p").each((i, el) => {
+                const t = $(el).text().trim();
+                if (t.length > 80 && !/lk21|subtitle|streaming online|tanpa buffering|\bnonton\b|koleksi yang tersedia|diperbarui secara berkala/i.test(t)) {
+                    if (synopsis === "N/A" || t.length > synopsis.length) synopsis = t;
                 }
-                let setAda = ada();
-                const hilang = [];
-                for (let e = 1; e <= maks; e++) if (!setAda.has(e)) hilang.push(e);
-                for (const e of hilang.slice(0, maks)) {
-                    const kandidat = slugEp(s, e);
-                    const html = await bukaGrid(kandidat);
-                    if (html && html.includes(kandidat.replace(/^\//, "")) && !ada().has(e)) {
-                        gabungkan([{ label: kandidat.split("/").pop(), href: kandidat, season: s, episode: e, judul: `S${s} E${e}` }]);
-                    }
-                }
-            }
-            infoSeason = nomorSeasonDari(teksHalaman, episodes);
+            });
+        }
+        if (synopsis === "N/A") {
+            const og = $("meta[property=\"og:description\"]").attr("content") || "";
+            synopsis = og.replace(/^nonton\s+/i, "").replace(/\s*subtitle indonesia.*$/i, "").trim() || "N/A";
         }
 
+        const episodes = [];
+        const seen = new Set();
+        const pola = /-season-(\d+)-episode-(\d+)(?:-(\d{4}))?$/i;
+        $("a[href*=\"/eps/\"]").each((i, el) => {
+            const href = $(el).attr("href") || "";
+            const path = href.split("?")[0].replace(/\/$/, "");
+            const m = pola.exec(path);
+            if (!m) return;
+            const slugEp = path.split("/").filter(Boolean).pop();
+            const hrefSatu = "/" + slugEp;
+            if (seen.has(hrefSatu)) return;
+            seen.add(hrefSatu);
+            episodes.push({
+                label: slugEp,
+                href: hrefSatu,
+                season: parseInt(m[1], 10),
+                episode: parseInt(m[2], 10),
+                judul: `S${m[1]} E${m[2]}`
+            });
+        });
+        episodes.sort((a, b) => a.season - b.season || a.episode - b.episode);
+        const seasonsSet = [...new Set(episodes.map((e) => e.season))].sort((a, b) => a - b);
         const episodes_by_season = {};
-        episodes.forEach(e => { (episodes_by_season[e.season] ||= []).push(e); });
-        const seasons = infoSeason.daftar.map(s => `S.${s}`);
-        const total_eps = episodes.length || null;
+        episodes.forEach((e) => { (episodes_by_season[e.season] ||= []).push(e); });
+        const seasons = seasonsSet.map((s) => `S.${s}`);
+        const total_eps = episodes.length || totalEpsMeta || null;
 
         return {
             slug: idSeries,
@@ -212,13 +122,10 @@ async function getEpisode(idSeries) {
             release,
             synopsis
         };
-
     } catch (err) {
         console.error("Terjadi kesalahan saat mengambil data getEpisode:", err.message);
         throw err;
     }
 }
 
-module.exports = {
-    getEpisode
-};
+module.exports = { getEpisode };

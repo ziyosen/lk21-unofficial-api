@@ -1,21 +1,22 @@
-const axios = require("axios");
 const { ambil } = require("../fetcher");
 const cheerio = require("cheerio");
-require("dotenv").config()
+require("dotenv").config();
 
-async function getYearsSeries(){
-    try{
+async function getYearsSeries() {
+    try {
         const response = await ambil(process.env.LK21_BASE_SERIES);
         const $ = cheerio.load(response.data);
         const years = [];
-        $('a[href^="/year/"]').each((i, el) => {
+        $("a[href*=\"/year/\"]").each((i, el) => {
             const name = $(el).text().trim();
             const link = $(el).attr("href");
-            const href = new URL(link, process.env.LK21_BASE_SERIES).pathname.split('/').filter(Boolean).pop();
-            if (!years.find(y => y.href === href)) years.push({name, href});
+            if (!link || !name) return;
+            const href = new URL(link, process.env.LK21_BASE_SERIES).pathname.split("/").filter(Boolean).pop();
+            if (!href) return;
+            if (!years.find((y) => y.href === href)) years.push({ name, href });
         });
         return years;
-    } catch (err){
+    } catch (err) {
         console.log("error: ", err);
         throw err;
     }
@@ -23,4 +24,4 @@ async function getYearsSeries(){
 
 module.exports = {
     getYearsSeries
-}
+};

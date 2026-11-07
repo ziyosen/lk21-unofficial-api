@@ -12,10 +12,13 @@ async function getGenresMovies() {
         });
         const $ = cheerio.load(response.data);
         const genres = [];
-        $('a[href^="/genre/"]').each((i, el) => {
+        const seen = new Set();
+        $('a[href*="/genre/"]').each((i, el) => {
             const name = $(el).text().trim();
             const link = $(el).attr("href");
             const href = new URL(link, process.env.LK21_BASE_MOVIE).pathname.split('/').filter(Boolean).pop();;
+            if (seen.has(href)) return;
+            seen.add(href);
             genres.push({name, href});
         });
         return genres;

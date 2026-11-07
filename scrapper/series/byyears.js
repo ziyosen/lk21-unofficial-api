@@ -1,19 +1,31 @@
 const cheerio = require("cheerio");
 const { ambil } = require("../fetcher");
-require("dotenv").config()
+require("dotenv").config();
 
+/* Listing series per tahun — sumber lk21asia.com (tema GMR): /year/<tahun>/.
+   Hasil difilter series saja (is_series dari parser GMR). */
 async function getSeriesByYears(yearsid, page = 1) {
-    try{
-        let url = `${process.env.LK21_BASE_SERIES}year/${yearsid}`;
-        if (page > 1){
-            url = `${process.env.LK21_BASE_SERIES}year/${yearsid}/page/${page}`;
+    try {
+        const base = process.env.LK21_BASE_SERIES;
+        const fetchPage = async (p) => {
+            const url = p > 1 ? `${base}year/${yearsid}/page/${p}/` : `${base}year/${yearsid}/`;
+            const response = await ambil(url);
+            const $ = cheerio.load(response.data);
+            return require("../listing").parseListing($);
+        };
+        let { total_pages, movies } = await fetchPage(page);
+        const series = movies.filter((x) => x.is_series);
+        let p = page;
+        while (page === 1 && series.length < 8 && p < Math.min(total_pages, 3)) {
+            p += 1;
+            const next = await fetchPage(p);
+            total_pages = next.total_pages;
+            for (const it of next.movies.filter((x) => x.is_series)) {
+                if (!series.find((s) => s.slug === it.slug)) series.push(it);
+            }
         }
-        const response = await ambil(url);
-        const $ = cheerio.load(response.data);
-        const { total_pages, movies: series } = require("../listing").parseListing($);
         return { total_pages, series };
-
-    } catch(err){
+    } catch (err) {
         console.log("error: ", err.message);
         throw err;
     }
@@ -21,4 +33,4 @@ async function getSeriesByYears(yearsid, page = 1) {
 
 module.exports = {
     getSeriesByYears,
-}
+};
