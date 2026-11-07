@@ -194,7 +194,7 @@ app.get("/movies/:slug/stream", async (req, res) => {
         } catch (e) {
             vidaraErr = e.message;
         }
-        if (!stream) {
+        if (!stream || !stream.stream || stream.stream.length === 0) {
             // FALLBACK gdframe/sharer (resolver alternatif, host cepat)
             try {
                 const g = await gdframeResolve(req.params.slug);
@@ -204,7 +204,7 @@ app.get("/movies/:slug/stream", async (req, res) => {
                     hls: hlsUrl(g.hlsFinal), hls_final: g.hlsFinal
                 }});
             } catch (e) {
-                return res.status(404).json({ status: false, developers: Developers, message: "Movie not found (vidara: " + (vidaraErr || "kosong") + " | gdframe: " + e.message + ")" });
+                return res.status(404).json({ status: false, developers: Developers, message: "Movie not found (vidara: " + (vidaraErr || (stream ? "stream kosong" : "kosong") ) + " | gdframe: " + e.message + ")" });
             }
         }
         res.json({ status: true, developers: Developers, result: stream });
