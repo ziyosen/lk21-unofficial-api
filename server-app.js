@@ -1,6 +1,7 @@
 const express = require("express");
 const cheerio = require("cheerio");
-const { ambil } = require("./scrapper/fetcher");;
+const { ambil } = require("./scrapper/fetcher");
+const { gdframeResolve } = require("./scrapper/gdframe");
 const cors = require("cors");
 const morgan = require("morgan");
 require("dotenv").config();
@@ -83,7 +84,14 @@ app.get("/movies/:slug/play", async (req, res) => {
                 } catch (e) {}
             }
         }
-        if (!iframe) return res.status(404).json({ status: false, message: "Player tidak ditemukan" });
+        if (!iframe) {
+            try {
+                const g = await gdframeResolve(req.params.slug);
+                return res.json({ status: true, title: req.params.slug, poster: null, hls: hlsUrl(g.hlsFinal), provider: "gdframe", hls_final: g.hlsFinal });
+            } catch (e) {
+                return res.status(404).json({ status: false, message: "Player tidak ditemukan" });
+            }
+        }
         const m = /\/iframe3\/([a-z0-9]+)\/([A-Za-z0-9_-]+)/.exec(iframe);
         if (!m) return res.status(404).json({ status: false, message: "ID player tidak terbaca" });
         const [, host, id] = m;
@@ -127,7 +135,7 @@ app.get("/hls", async (req, res) => {
     // Anti-SSRF: hanya izinkan host video yang dipakai player (review sonnet-4.5)
     let h; try { h = new URL(u).hostname; } catch { return res.status(400).end("bad url"); }
     // CDN rotasi sumber memakai pola <hewan>.<brand>.xyz (duck/bunny/cat/... × qornexia/blaytoro/...)
-    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|^[a-z]+\.[a-z]+\.xyz$/.test(h)) return res.status(403).end("host tidak diizinkan");
+    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)gdriveplayer\.to$/.test(h)) return res.status(403).end("host tidak diizinkan");
     try {
         const r = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0", "Referer": "https://playcdn.de/" } });
         const ct = r.headers.get("content-type") || "";
@@ -179,9 +187,25 @@ app.get("/api", (_, res) => {
 
 app.get("/movies/:slug/stream", async (req, res) => {
     try {
-        const stream = await streamMovies(req.params.slug);
+        let stream = null;
+        let vidaraErr = null;
+        try {
+            stream = await streamMovies(req.params.slug);
+        } catch (e) {
+            vidaraErr = e.message;
+        }
         if (!stream) {
-            return res.status(404).json({ status: false, developers: Developers, message: "Movie not found" });
+            // FALLBACK gdframe/sharer (resolver alternatif, host cepat)
+            try {
+                const g = await gdframeResolve(req.params.slug);
+                return res.json({ status: true, developers: Developers, result: {
+                    slug: req.params.slug, provider: "gdframe",
+                    title: req.params.slug, poster: null,
+                    hls: hlsUrl(g.hlsFinal), hls_final: g.hlsFinal
+                }});
+            } catch (e) {
+                return res.status(404).json({ status: false, developers: Developers, message: "Movie not found (vidara: " + (vidaraErr || "kosong") + " | gdframe: " + e.message + ")" });
+            }
         }
         res.json({ status: true, developers: Developers, result: stream });
     } catch (err) {
