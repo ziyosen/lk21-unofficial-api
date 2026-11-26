@@ -310,8 +310,8 @@ function segContentType(ctUp) {
 async function segPrefetch(url) {
     if (segCacheGet(url) || segInflight.has(url)) return;
     let h; try { h = new URL(url).hostname; } catch { return; }
-    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)gdriveplayer\.to$/.test(h) && !dynamicHostAllowed(h)) return;
-    const ref = (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
+    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)gdriveplayer\.to$|^[a-z0-9]+\.stream\d+\.online$/.test(h) && !dynamicHostAllowed(h)) return;
+    const ref = (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$|\.stream\d+\.online$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
     segInflight.add(url);
     try {
         const r = await fetch(url, { signal: AbortSignal.timeout(30000), headers: { "User-Agent": "Mozilla/5.0", "Referer": ref } });
@@ -334,7 +334,7 @@ function segWarmAhead(list, idx, n) {
 async function warmPlayCache(fileUrl) {
     try {
         let h; try { h = new URL(fileUrl).hostname; } catch { return; }
-        const ref = (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
+        const ref = (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$|\.stream\d+\.online$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
         const r = await fetch(fileUrl, { signal: AbortSignal.timeout(30000), headers: { "User-Agent": "Mozilla/5.0", "Referer": ref } });
         if (!r.ok) return;
         const txt = await r.text();
@@ -365,8 +365,8 @@ app.get("/hls", async (req, res) => {
     // Anti-SSRF: hanya izinkan host video yang dipakai player (review sonnet-4.5)
     let h; try { h = new URL(u).hostname; } catch { return res.status(400).end("bad url"); }
     // CDN rotasi sumber memakai pola <hewan>.<brand>.xyz (duck/bunny/cat/... × qornexia/blaytoro/...)
-    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)gdriveplayer\.to$/.test(h) && !dynamicHostAllowed(h)) return res.status(403).end("host tidak diizinkan");
-    const ref = (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
+    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)gdriveplayer\.to$|^[a-z0-9]+\.stream\d+\.online$/.test(h) && !dynamicHostAllowed(h)) return res.status(403).end("host tidak diizinkan");
+    const ref = (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$|\.stream\d+\.online$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
     try {
         const r = await fetch(u, { signal: AbortSignal.timeout(30000), headers: { "User-Agent": "Mozilla/5.0", "Referer": ref } });
         const ct = r.headers.get("content-type") || "";
