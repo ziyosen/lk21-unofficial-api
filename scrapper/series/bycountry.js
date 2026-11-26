@@ -14,7 +14,7 @@ const MAP_NEGARA = {
 };
 async function getSeriesByCountry(countryid, page = 1) {
     try {
-        const base = process.env.LK21_BASE_SERIES;
+        const base = String(process.env.LK21_BASE_SERIES || "").replace(/\/?$/, "/");
         const id = MAP_NEGARA[String(countryid).toLowerCase()] || countryid;
         const fetchPage = async (p) => {
             const url = p > 1 ? `${base}country/${id}/page/${p}/` : `${base}country/${id}/`;

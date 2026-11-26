@@ -7,7 +7,7 @@ require("dotenv").config();
    Hasil difilter series saja (is_series dari parser GMR). */
 async function getSeriesByGenre(genreid, page = 1) {
     try {
-        const base = process.env.LK21_BASE_SERIES;
+        const base = String(process.env.LK21_BASE_SERIES || "").replace(/\/?$/, "/");
         const fetchPage = async (p) => {
             const url = p > 1 ? `${base}category/${genreid}/page/${p}/` : `${base}category/${genreid}/`;
             const response = await ambil(url);
