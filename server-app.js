@@ -2,6 +2,7 @@ const express = require("express");
 const cheerio = require("cheerio");
 const { ambil } = require("./scrapper/fetcher");
 const { gdframeResolve } = require("./scrapper/gdframe");
+const { movieBases } = require("./scrapper/bases");
 const cors = require("cors");
 const morgan = require("morgan");
 require("dotenv").config();
@@ -184,15 +185,25 @@ app.get("/movies/:slug/play", async (req, res) => {
                 }
             } catch (e) { /* lanjut ke jalur lama */ }
         }
-        // Coba film dulu (tv12), lalu series (tv9) — katalog mencampur keduanya
+        // Coba film dulu (tv12), lalu series (tv9) — katalog mencampur keduanya.
+        // Multi-source: kedua base film (lk21asia + layarkaca21.city) + base series.
         let iframe = null;
-        for (const base of [process.env.LK21_BASE_MOVIE, process.env.LK21_BASE_SERIES]) {
+        let bysesayeveumEmbed = null;
+        for (const base of [...movieBases(), process.env.LK21_BASE_SERIES]) {
             if (!base) continue;
             try {
                 const page = await ambil(`${base}${req.params.slug}`);
                 const $p = cheerio.load(page.data);
                 const src = $p("iframe#main-player").attr("src");
-                if (src) { iframe = src; break; }
+                if (src && /\/iframe3\/[a-z0-9]+\/[A-Za-z0-9_-]+/.test(src)) { iframe = src; break; }
+                // Embed lain (layarkaca21.city -> bysesayeveum.com): belum ada resolver
+                // (tugas terpisah) — dicatat agar pesan gagalnya jelas, bukan "tidak ditemukan".
+                if (!bysesayeveumEmbed) {
+                    $p("iframe").each((i, el) => {
+                        const s = $p(el).attr("src") || "";
+                        if (/bysesayeveum\.com\/e\//.test(s)) bysesayeveumEmbed = s;
+                    });
+                }
             } catch (e) { /* lanjut ke base berikutnya */ }
         }
         // Series tanpa episode: coba episode pertama (slug-season-1-episode-1-tahun)
@@ -214,6 +225,9 @@ app.get("/movies/:slug/play", async (req, res) => {
                 const g = await gdframeResolve(req.params.slug);
                 return res.json({ status: true, title: req.params.slug, poster: null, hls: hlsUrl(g.hlsFinal), provider: "gdframe", hls_final: g.hlsFinal });
             } catch (e) {
+                if (bysesayeveumEmbed) {
+                    return res.status(404).json({ status: false, message: "Player embed bysesayeveum — resolver belum tersedia", embed: bysesayeveumEmbed });
+                }
                 return res.status(404).json({ status: false, message: "Player tidak ditemukan" });
             }
         }
@@ -310,8 +324,8 @@ function segContentType(ctUp) {
 async function segPrefetch(url) {
     if (segCacheGet(url) || segInflight.has(url)) return;
     let h; try { h = new URL(url).hostname; } catch { return; }
-    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)gdriveplayer\.to$|^[a-z0-9]+\.stream\d+\.online$/.test(h) && !dynamicHostAllowed(h)) return;
-    const ref = (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$|\.stream\d+\.online$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
+    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)gdriveplayer\.to$/.test(h) && !dynamicHostAllowed(h)) return;
+    const ref = (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
     segInflight.add(url);
     try {
         const r = await fetch(url, { signal: AbortSignal.timeout(30000), headers: { "User-Agent": "Mozilla/5.0", "Referer": ref } });
@@ -334,7 +348,7 @@ function segWarmAhead(list, idx, n) {
 async function warmPlayCache(fileUrl) {
     try {
         let h; try { h = new URL(fileUrl).hostname; } catch { return; }
-        const ref = (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$|\.stream\d+\.online$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
+        const ref = (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
         const r = await fetch(fileUrl, { signal: AbortSignal.timeout(30000), headers: { "User-Agent": "Mozilla/5.0", "Referer": ref } });
         if (!r.ok) return;
         const txt = await r.text();
@@ -365,8 +379,8 @@ app.get("/hls", async (req, res) => {
     // Anti-SSRF: hanya izinkan host video yang dipakai player (review sonnet-4.5)
     let h; try { h = new URL(u).hostname; } catch { return res.status(400).end("bad url"); }
     // CDN rotasi sumber memakai pola <hewan>.<brand>.xyz (duck/bunny/cat/... × qornexia/blaytoro/...)
-    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)gdriveplayer\.to$|^[a-z0-9]+\.stream\d+\.online$/.test(h) && !dynamicHostAllowed(h)) return res.status(403).end("host tidak diizinkan");
-    const ref = (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$|\.stream\d+\.online$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
+    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)gdriveplayer\.to$/.test(h) && !dynamicHostAllowed(h)) return res.status(403).end("host tidak diizinkan");
+    const ref = (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
     try {
         const r = await fetch(u, { signal: AbortSignal.timeout(30000), headers: { "User-Agent": "Mozilla/5.0", "Referer": ref } });
         const ct = r.headers.get("content-type") || "";

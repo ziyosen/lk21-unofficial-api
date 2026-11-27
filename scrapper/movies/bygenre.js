@@ -1,17 +1,21 @@
-const axios = require("axios");
-const { ambil } = require("../fetcher");
-const cheerio = require("cheerio");
+const { fetchListings, isPrimaryBase } = require("../bases");
 require("dotenv").config()
 
 async function getMovieByGenre(genreid, page = 1){
+    const GENRE_ID = { action: 'aksi', adventure: 'petualangan', 'action-adventure': 'aksi-petualangan', animation: 'animasi', comedy: 'komedi', crime: 'kejahatan', documentary: 'dokumenter', drama: 'drama', family: 'keluarga', fantasy: 'fantasi', history: 'sejarah', horror: 'kengerian', music: 'musik', mystery: 'misteri', romance: 'percintaan', 'sci-fi': 'sci-fi-fantasy', 'science-fiction': 'sci-fi-fantasy', thriller: 'cerita-seru', war: 'war', 'tv-movie': 'film-tv' };
     try{
-        let url = `${process.env.LK21_BASE_MOVIE}genre/${genreid}`;
-        if (page > 1){
-            url = `${process.env.LK21_BASE_MOVIE}genre/${genreid}/page/${page}/`;
-        }
-        const response = await ambil(url);
-        const $ = cheerio.load(response.data);
-        const { total_pages, movies } = require("../listing").parseListing($);
+        const idSlug = GENRE_ID[(genreid || '').toLowerCase()] || genreid;
+        const enSlug = (genreid || '').toLowerCase();
+        // lk21asia pakai slug kategori Indonesia (/category/aksi/),
+        // layarkaca21.city pakai slug Inggris (/category/action/).
+        const { total_pages, movies } = await fetchListings((base) => {
+            const slug = isPrimaryBase(base) ? idSlug : enSlug;
+            let url = `${base}category/${slug}/`;
+            if (page > 1){
+                url = `${base}category/${slug}/page/${page}/`;
+            }
+            return url;
+        });
         return {
             total_pages,
             movies

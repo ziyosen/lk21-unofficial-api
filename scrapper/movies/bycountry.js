@@ -1,17 +1,15 @@
-const axios = require("axios");
-const { ambil } = require("../fetcher");
-const cheerio = require("cheerio");
+const { fetchListings } = require("../bases");
 require("dotenv").config()
 
 async function getMovieByCountry(countryid, page = 1) {
     try{
-        let url = `${process.env.LK21_BASE_MOVIE}country/${countryid}`;
-        if (page > 1){
-            url = `${process.env.LK21_BASE_MOVIE}country/${countryid}/page/${page}/`;
-        }
-        const response = await ambil(url);
-        const $ = cheerio.load(response.data);
-        const { total_pages, movies } = require("../listing").parseListing($);
+        const { total_pages, movies } = await fetchListings((base) => {
+            let url = `${base}country/${countryid}`;
+            if (page > 1){
+                url = `${base}country/${countryid}/page/${page}/`;
+            }
+            return url;
+        });
         return {
             total_pages,
             movies

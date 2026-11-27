@@ -1,17 +1,17 @@
-const cheerio = require("cheerio");
-const { ambil } = require("../fetcher");
-const { parseListing } = require("../listing");
+const { fetchListings } = require("../bases");
 require("dotenv").config()
 
 async function latestMovies(page = 1) {
     try {
-        let url = `${process.env.LK21_BASE_MOVIE}latest/`;
-        if (page > 1) {
-            url = `${process.env.LK21_BASE_MOVIE}latest/page/${page}/`;
-        }
-        const response = await ambil(url);
-        const $ = cheerio.load(response.data);
-        return parseListing($);
+        // Patch lokal (dipertahankan): halaman 1 = homepage (/latest/ 404 di
+        // kedua base), halaman > 1 = /page/N/. Berlaku untuk kedua base.
+        return await fetchListings((base) => {
+            let url = `${base}`;
+            if (page > 1) {
+                url = `${base}page/${page}/`;
+            }
+            return url;
+        });
     } catch (err) {
         console.log("error: ", err.message);
         throw err;

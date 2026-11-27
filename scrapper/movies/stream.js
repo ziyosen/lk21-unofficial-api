@@ -1,5 +1,6 @@
 const cheerio = require("cheerio");
 const { ambil } = require("../fetcher");
+const { fetchDetail } = require("../bases");
 require("dotenv").config();
 
 /* streamMovies: ambil detail + link player dari halaman film.
@@ -8,9 +9,9 @@ require("dotenv").config();
    dan "Sutradara" di area info. */
 async function streamMovies(idmovies) {
     try {
-        const url = `${process.env.LK21_BASE_MOVIE}${idmovies}`;
-        const response = await ambil(url);
-        const $ = cheerio.load(response.data);
+        // Multi-source: coba base 1 (lk21asia), kalau 404 coba base 2 (layarkaca21.city)
+        const { data } = await fetchDetail(idmovies);
+        const $ = cheerio.load(data);
 
         // Guard: halaman sumber = halaman redirect iklan (nontondrama), bukan halaman film
         const _t = $("h1").first().text() + " " + ($("title").text() || "");
@@ -78,6 +79,15 @@ async function streamMovies(idmovies) {
         const stream = [];
         const iframe = $("iframe#main-player").attr("src");
         if (iframe) stream.push({ text: "Player Utama", href: iframe });
+        /* Embed lain (mis. layarkaca21.city -> bysesayeveum.com): iframe tanpa id.
+           Ditangkap agar /stream mengembalikan link player-nya (resolver embed
+           terpisah masih diperlukan untuk mengubahnya jadi .m3u8). */
+        $("iframe").each((i, el) => {
+            const src = $(el).attr("src");
+            if (!src) return;
+            if (stream.some((s) => s.href === src)) return;
+            stream.push({ text: "Player", href: src });
+        });
         $("#loadProviders > li > a, .provider a").each((i, el) => {
             const href = $(el).attr("href") || null;
             const text = $(el).text().trim();
