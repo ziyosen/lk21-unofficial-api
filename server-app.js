@@ -486,6 +486,31 @@ async function warmPlayCache(fileUrl) {
     } catch (e) { /* warm gagal diam-diam; /hls tetap jalan normal */ }
 }
 
+
+// Proxy poster gambar (fix "No Poster"): browser HP tidak bisa memuat gambar
+// langsung dari lk21asia/layarkaca21 (hotlink/filter ISP), jadi gambar
+// disajikan lewat domain sendiri. Anti-SSRF: hanya host gambar yang dipakai.
+app.get("/img", async (req, res) => {
+    if (!rateLimit(req, res, 900, 60000)) return;
+    const u = req.query.u;
+    if (!u || !/^https?:\/\//.test(u)) return res.status(400).end("bad url");
+    let h; try { h = new URL(u).hostname; } catch { return res.status(400).end("bad url"); }
+    if (!/(^|\.)lk21asia\.com$|(^|\.)layarkaca21\.city$|(^|\.)idlix\.bar$|(^|\.)image\.tmdb\.org$|^159\.223\.68\.21$/.test(h)) return res.status(403).end("host tidak diizinkan");
+    try {
+        const r = await fetch(u, { signal: AbortSignal.timeout(20000), headers: { "User-Agent": "Mozilla/5.0", "Referer": new URL(u).origin + "/" } });
+        if (!r.ok) return res.status(502).end("upstream " + r.status);
+        const ct = r.headers.get("content-type") || "";
+        if (!/^image\//.test(ct)) return res.status(502).end("bukan gambar");
+        const buf = Buffer.from(await r.arrayBuffer());
+        if (buf.length > 5 * 1024 * 1024) return res.status(502).end("gambar terlalu besar");
+        res.set("Content-Type", ct);
+        res.set("Cache-Control", "public, max-age=86400");
+        return res.send(buf);
+    } catch (e) {
+        return res.status(502).end("gagal mengambil gambar");
+    }
+});
+
 app.get("/hls", async (req, res) => {
     if (!rateLimit(req, res, 900, 60000)) return;
     const u = req.query.u;

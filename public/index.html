@@ -333,7 +333,7 @@ let curState={kind:'home'};
 
 /* ================= HELPERS ================= */
 function esc(s){return String(s??'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}
-function img(m){return esc(m.images||m.image||PLACE)}
+function img(m){const u=m.images||m.image;return u?esc('/img?u='+encodeURIComponent(u)):PLACE}
 function yr(m){return m.year&&m.year!=='N/A'?esc(m.year):''}
 function rt(m){return m.rating&&m.rating!=='N/A'&&m.rating!=='0'?esc(m.rating):''}
 async function jget(u){const c=new AbortController();const t=setTimeout(()=>c.abort(),30000);try{const r=await fetch(API+u,{signal:c.signal});if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}catch(e){if(e&&e.name==='AbortError')throw new Error('waktu habis (30 detik)');throw e}finally{clearTimeout(t)}}
