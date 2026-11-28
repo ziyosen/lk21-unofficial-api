@@ -48,7 +48,7 @@ async function sharerHls(slug) {
         d: "sharer.link"
     });
     const resp = await fetch("https://sharer.link/540.php?movie=" + encodeURIComponent(slug), {
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(10000),
         method: "POST",
         headers: {
             "Content-Type": "application/x-www-form-urlencoded",
@@ -72,7 +72,7 @@ async function sharerHls(slug) {
 // sehingga URL yang dikembalikan ke frontend masih baru.
 async function vidaraHls(filecode) {
     const resp = await fetch("https://vidara.to/api/stream", {
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(10000),
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -92,7 +92,7 @@ async function vidaraHls(filecode) {
 async function episodeHls(slug) {
     const base = process.env.LK21_BASE_SERIES || "";
     const pageRes = await fetch(base + "eps/" + encodeURIComponent(slug) + "/", {
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(10000),
         headers: { "User-Agent": "Mozilla/5.0", "Referer": base }
     });
     const html = await pageRes.text();
@@ -110,7 +110,7 @@ async function episodeHls(slug) {
     for (const tab of tabs) {
         try {
             const ajax = await fetch(base + "wp-admin/admin-ajax.php", {
-                signal: AbortSignal.timeout(15000),
+                signal: AbortSignal.timeout(10000),
                 method: "POST",
                 headers: {
                     "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -156,61 +156,77 @@ if (process.env.NODE_ENV !== "production") {
 const http = require("http");
 const https = require("https");
 
-app.get("/movies/:slug/play", async (req, res) => {
+// Batas total /play (fail-fast, 28 Nov 2026): war-2026 menggantung tanpa batas
+// (>45 dtk, 0 byte) karena rantai sharer/ambil/gdframe/videonode tidak punya
+// batas keseluruhan. resolveMoviePlay mengembalikan { code, body } (tidak
+// menulis res langsung) supaya race deadline bisa menang tanpa double-response.
+const PLAY_DEADLINE_MS = 15000;
+async function resolveMoviePlay(slug) {
     try {
         // Jalur baru: sharer.link 540.php -> m3u8 langsung (tema baru tanpa iframe#main-player)
         try {
-            const sh = await sharerHls(req.params.slug);
+            const sh = await sharerHls(slug);
             if (sh && sh.file) {
-                let title = req.params.slug;
+                let title = slug;
                 let poster = sh.poster || null;
                 try {
-                    const pg = await ambil((process.env.LK21_BASE_MOVIE || "") + req.params.slug);
+                    // Judul/poster kosmetik — jangan tahan respons /play
+                    // (ambil() bisa lambat kalau proxy menggantung).
+                    const pg = await Promise.race([
+                        ambil((process.env.LK21_BASE_MOVIE || "") + slug),
+                        new Promise((_, rej) => setTimeout(() => rej(new Error("title timeout")), 3000))
+                    ]);
                     const $p = cheerio.load(pg.data);
                     const h1 = $p("h1").first().text().trim().replace(/\s+Sub Indo di Lk21\s*$/i, "");
                     if (h1) title = h1;
                     if (!poster) poster = $p("meta[property=\"og:image\"]").attr("content") || null;
                 } catch (e) {}
                 warmPlayCache(sh.file); // head start: panaskan segmen sebelum player minta
-                return res.json({ status: true, title: title, poster: poster, hls: hlsUrl(sh.file), direct: sh.file });
+                return { code: 200, body: { status: true, title: title, poster: poster, hls: hlsUrl(sh.file), direct: sh.file } };
             }
         } catch (e) { /* lanjut ke jalur lama */ }
         // Episode series (lk21asia): player muvipro AJAX -> vidara.to -> m3u8
-        if (/-season-\d+-episode-\d+(?:-\d{4})?$/i.test(req.params.slug)) {
+        if (/-season-\d+-episode-\d+(?:-\d{4})?$/i.test(slug)) {
             try {
-                const ep = await episodeHls(req.params.slug);
+                const ep = await episodeHls(slug);
                 if (ep && ep.file) {
                     warmPlayCache(ep.file); // head start: panaskan segmen sebelum player minta
-                    return res.json({ status: true, title: ep.title || req.params.slug, poster: ep.poster || null, hls: hlsUrl(ep.file), direct: ep.file });
+                    return { code: 200, body: { status: true, title: ep.title || slug, poster: ep.poster || null, hls: hlsUrl(ep.file), direct: ep.file } };
                 }
             } catch (e) { /* lanjut ke jalur lama */ }
         }
         // Coba film dulu (tv12), lalu series (tv9) — katalog mencampur keduanya.
         // Multi-source: kedua base film (lk21asia + layarkaca21.city) + base series.
+        // Semua base diambil PARALEL (bukan satu-satu): satu ambil() bisa
+        // ~12 dtk kalau proxy menggantung — berurutan bisa 3x lipat.
         let iframe = null;
         let bysesayeveumEmbed = null;
-        for (const base of [...movieBases(), process.env.LK21_BASE_SERIES]) {
-            if (!base) continue;
-            try {
-                const page = await ambil(`${base}${req.params.slug}`);
-                const $p = cheerio.load(page.data);
+        const bases = [...movieBases(), process.env.LK21_BASE_SERIES].filter(Boolean);
+        const settled = await Promise.allSettled(bases.map(async (base) => {
+            const page = await ambil(`${base}${slug}`);
+            return cheerio.load(page.data);
+        }));
+        for (const s of settled) {
+            if (s.status !== "fulfilled") continue;
+            const $p = s.value;
+            if (!iframe) {
                 const src = $p("iframe#main-player").attr("src");
-                if (src && /\/iframe3\/[a-z0-9]+\/[A-Za-z0-9_-]+/.test(src)) { iframe = src; break; }
-                // Embed lain (layarkaca21.city -> bysesayeveum.com): belum ada resolver
-                // (tugas terpisah) — dicatat agar pesan gagalnya jelas, bukan "tidak ditemukan".
-                if (!bysesayeveumEmbed) {
-                    $p("iframe").each((i, el) => {
-                        const s = $p(el).attr("src") || "";
-                        if (/bysesayeveum\.com\/e\//.test(s)) bysesayeveumEmbed = s;
-                    });
-                }
-            } catch (e) { /* lanjut ke base berikutnya */ }
+                if (src && /\/iframe3\/[a-z0-9]+\/[A-Za-z0-9_-]+/.test(src)) iframe = src;
+            }
+            // Embed lain (layarkaca21.city -> bysesayeveum.com): belum ada resolver
+            // (tugas terpisah) — dicatat agar pesan gagalnya jelas, bukan "tidak ditemukan".
+            if (!bysesayeveumEmbed) {
+                $p("iframe").each((i, el) => {
+                    const s2 = $p(el).attr("src") || "";
+                    if (/bysesayeveum\.com\/e\//.test(s2)) bysesayeveumEmbed = s2;
+                });
+            }
         }
         // Series tanpa episode: coba episode pertama (slug-season-1-episode-1-tahun)
         if (!iframe) {
-            const ym = /-(\d{4})$/.exec(req.params.slug);
+            const ym = /-(\d{4})$/.exec(slug);
             if (ym) {
-                const epSlug = `${req.params.slug.slice(0, -5)}-season-1-episode-1-${ym[1]}`;
+                const epSlug = `${slug.slice(0, -5)}-season-1-episode-1-${ym[1]}`;
                 try {
                     const page = await ambil(`${process.env.LK21_BASE_SERIES}${epSlug}`);
                     const $p = cheerio.load(page.data);
@@ -222,37 +238,46 @@ app.get("/movies/:slug/play", async (req, res) => {
         }
         if (!iframe) {
             try {
-                const g = await gdframeResolve(req.params.slug);
-                return res.json({ status: true, title: req.params.slug, poster: null, hls: hlsUrl(g.hlsFinal), provider: "gdframe", hls_final: g.hlsFinal });
+                const g = await gdframeResolve(slug);
+                return { code: 200, body: { status: true, title: slug, poster: null, hls: hlsUrl(g.hlsFinal), provider: "gdframe", hls_final: g.hlsFinal } };
             } catch (e) {
                 if (bysesayeveumEmbed) {
-                    return res.status(404).json({ status: false, message: "Player embed bysesayeveum — resolver belum tersedia", embed: bysesayeveumEmbed });
+                    return { code: 404, body: { status: false, message: "Player embed bysesayeveum — resolver belum tersedia", embed: bysesayeveumEmbed } };
                 }
-                return res.status(404).json({ status: false, message: "Player tidak ditemukan" });
+                return { code: 404, body: { status: false, message: "Player tidak ditemukan" } };
             }
         }
         const m = /\/iframe3\/([a-z0-9]+)\/([A-Za-z0-9_-]+)/.exec(iframe);
-        if (!m) return res.status(404).json({ status: false, message: "ID player tidak terbaca" });
+        if (!m) return { code: 404, body: { status: false, message: "ID player tidak terbaca" } };
         const [, host, id] = m;
         // 1) embedUrl dari videonode api.php
         const embedRes = await fetch("https://videonode.de/api.php", {
+            signal: AbortSignal.timeout(8000),
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded", "Referer": iframe, "User-Agent": "Mozilla/5.0" },
             body: `host=${host}&id=${id}`
         });
         const embedJson = await embedRes.json();
         const embed = embedJson.embedUrl;
-        if (!embed) return res.status(502).json({ status: false, message: "embedUrl kosong" });
+        if (!embed) return { code: 502, body: { status: false, message: "embedUrl kosong" } };
         // 2) verify → fileUrl
         const slug2 = new URL(embed).pathname.split("/").filter(Boolean).pop();
-        const ver = await fetch("https://playcdn.de/verify/" + encodeURIComponent(slug2), { headers: { "Referer": embed, "User-Agent": "Mozilla/5.0" } });
+        const ver = await fetch("https://playcdn.de/verify/" + encodeURIComponent(slug2), { signal: AbortSignal.timeout(8000), headers: { "Referer": embed, "User-Agent": "Mozilla/5.0" } });
         const verJson = await ver.json();
-        if (!verJson.fileUrl) return res.status(502).json({ status: false, message: "fileUrl kosong" });
+        if (!verJson.fileUrl) return { code: 502, body: { status: false, message: "fileUrl kosong" } };
         warmPlayCache(verJson.fileUrl); // head start: panaskan segmen sebelum player minta
-        res.json({ status: true, title: verJson.title, poster: verJson.poster, hls: hlsUrl(verJson.fileUrl), direct: verJson.fileUrl });
+        return { code: 200, body: { status: true, title: verJson.title, poster: verJson.poster, hls: hlsUrl(verJson.fileUrl), direct: verJson.fileUrl } };
     } catch (err) {
-        res.status(500).json({ status: false, message: err.message });
+        return { code: 500, body: { status: false, message: err.message } };
     }
+}
+
+app.get("/movies/:slug/play", async (req, res) => {
+    const out = await Promise.race([
+        resolveMoviePlay(req.params.slug),
+        new Promise((resolve) => setTimeout(() => resolve({ code: 404, body: { status: false, message: "Player tidak ditemukan" } }), PLAY_DEADLINE_MS))
+    ]);
+    return res.status(out.code).json(out.body);
 });
 
 // Host CDN vidara yang diizinkan /hls — didaftarkan dinamis tiap /play
@@ -687,6 +712,7 @@ app.get("/series/:slug/stream", async (req, res) => {
             if (!mm) return res.status(404).json({ status: false, developers: Developers, message: "ID player tidak terbaca" });
             const [, host, id] = mm;
             const embedRes = await fetch("https://videonode.de/api.php", {
+                signal: AbortSignal.timeout(8000),
                 method: "POST",
                 headers: { "Content-Type": "application/x-www-form-urlencoded", "Referer": iframe, "User-Agent": "Mozilla/5.0" },
                 body: `host=${host}&id=${id}`
@@ -695,7 +721,7 @@ app.get("/series/:slug/stream", async (req, res) => {
             const embed = embedJson.embedUrl;
             if (!embed) return res.status(502).json({ status: false, developers: Developers, message: "embedUrl kosong" });
             const slug2 = new URL(embed).pathname.split("/").filter(Boolean).pop();
-            const ver = await fetch("https://playcdn.de/verify/" + encodeURIComponent(slug2), { headers: { "Referer": embed, "User-Agent": "Mozilla/5.0" } });
+            const ver = await fetch("https://playcdn.de/verify/" + encodeURIComponent(slug2), { signal: AbortSignal.timeout(8000), headers: { "Referer": embed, "User-Agent": "Mozilla/5.0" } });
             const verJson = await ver.json();
             if (!verJson.fileUrl) return res.status(502).json({ status: false, developers: Developers, message: "fileUrl kosong" });
             warmPlayCache(verJson.fileUrl); // head start: panaskan segmen sebelum player minta

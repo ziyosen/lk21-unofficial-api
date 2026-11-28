@@ -8,10 +8,11 @@ function _b64decodeKeepSlashes(s) {
     return Buffer.from(s.replace(/\\\//g, "/"), "base64").toString("latin1");
 }
 
-async function gdframeResolve(slug, log = () => {}) {
+async function _gdframeResolveInner(slug, log = () => {}) {
     const H = { "User-Agent": UA_BROWSER, "Referer": "https://terbit21.org/" };
     // 1) daftar provider
     const r1 = await fetch("https://sharer.link/data.php", {
+        signal: AbortSignal.timeout(8000),
         method: "POST",
         headers: { ...H, "Content-Type": "application/x-www-form-urlencoded" },
         body: "movie=" + encodeURIComponent(slug)
@@ -24,7 +25,7 @@ async function gdframeResolve(slug, log = () => {}) {
     if (!pick) throw new Error("NO_PROVIDER");
 
     // 2) halaman play (berisi iframe gdframe.php)
-    const r2 = await fetch(`https://sharer.link/play.php?movie=${encodeURIComponent(slug)}&iframe=${pick}`, { headers: H });
+    const r2 = await fetch(`https://sharer.link/play.php?movie=${encodeURIComponent(slug)}&iframe=${pick}`, { signal: AbortSignal.timeout(8000), headers: H });
     if (!r2.ok) throw new Error("play.php " + r2.status);
     const playHtml = await r2.text();
     const m2 = playHtml.match(/iframe\s+src="([^"]*gdframe\.php\?[^"]+)"/);
@@ -32,7 +33,7 @@ async function gdframeResolve(slug, log = () => {}) {
     let gdUrl = m2[1].startsWith("//") ? "https:" + m2[1] : m2[1];
 
     // 3) gdframe.php -> iframe gdriveplayer embed2
-    const r3 = await fetch(gdUrl, { headers: { ...H, "Referer": "https://sharer.link/play.php" } });
+    const r3 = await fetch(gdUrl, { signal: AbortSignal.timeout(8000), headers: { ...H, "Referer": "https://sharer.link/play.php" } });
     if (!r3.ok) throw new Error("gdframe " + r3.status);
     const gdHtml = await r3.text();
     const m3 = gdHtml.match(/<iframe src="([^"]+)"/);
@@ -40,7 +41,7 @@ async function gdframeResolve(slug, log = () => {}) {
     let embedUrl = m3[1].startsWith("//") ? "https:" + m3[1] : m3[1];
 
     // 4) embed2.php -> JS obfuskasi (atob + XOR)
-    const r4 = await fetch(embedUrl, { headers: { ...H, "Referer": "https://sharer.link/" } });
+    const r4 = await fetch(embedUrl, { signal: AbortSignal.timeout(8000), headers: { ...H, "Referer": "https://sharer.link/" } });
     if (!r4.ok) throw new Error("embed2 " + r4.status);
     const embHtml = await r4.text();
     const mk = embHtml.match(/var\s+k="([A-Za-z0-9]+)"/);
@@ -58,6 +59,15 @@ async function gdframeResolve(slug, log = () => {}) {
     else if (!/^https?:\/\//.test(hlsPath)) hlsPath = "https://gdriveplayer.to/" + hlsPath.replace(/^\//, "");
     log("gdframe HLS:", hlsPath.slice(0, 90));
     return { hlsFinal: hlsPath, provider: pick };
+}
+
+// Batas total resolver gdframe (fail-fast, 28 Nov 2026): fetch di atas tidak
+// punya timeout — kalau sharer.link menggantung, /play ikut menggantung.
+async function gdframeResolve(slug, log = () => {}) {
+    return Promise.race([
+        _gdframeResolveInner(slug, log),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("gdframe timeout")), 12000))
+    ]);
 }
 
 module.exports = { gdframeResolve, UA_BROWSER };

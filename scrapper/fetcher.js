@@ -93,6 +93,16 @@ async function ambil(url) {
                         daftarProxy = [proxy, ...daftarProxy.filter(p => p !== proxy)];
                     }
                     resolve({ status: r.status, data: r.body, proxy: proxy || "direct" });
+                } else if (r.status === 404 && !isChallenge(r.body) && (r.body || "").trim().length > 0) {
+                    /* 404 definitif dari origin (bukan challenge, body ada):
+                       halaman memang tidak ada. Jangan tunggu proxy lambat
+                       (curl -m 12 dtk) — gagal cepat. Aman: 404 adalah
+                       keputusan konten origin, bukan blokir per-IP (blokir
+                       CF = 403/challenge, bukan 404). */
+                    selesai = true;
+                    const e = new Error("404 untuk " + url);
+                    e.status = 404;
+                    reject(e);
                 } else {
                     gagal++;
                     catat.push((proxy || "direct") + "=" + r.status);

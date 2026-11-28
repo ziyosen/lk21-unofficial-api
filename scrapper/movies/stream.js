@@ -96,6 +96,7 @@ async function streamMovies(idmovies) {
         /* Provider streaming tema baru: sharer.link data.php (POST movie=slug, butuh Referer) */
         try {
             const dp = await fetch("https://sharer.link/data.php", {
+                signal: AbortSignal.timeout(8000),
                 method: "POST",
                 headers: { "Content-Type": "application/x-www-form-urlencoded", "Referer": (process.env.LK21_BASE_MOVIE || "") + idmovies },
                 body: new URLSearchParams({ movie: idmovies })
