@@ -1,5 +1,6 @@
 // wpsource.js — sumber film WordPress via wp-json (lk21official.cloud +
-// idlix.bar), sebagai sumber ke-3/ke-4 Zona Cinema (28 Nov 2026).
+// idlix.bar + zonafilm.shop), sebagai sumber ke-3/ke-4/ke-5 Zona Cinema
+// (28 Nov 2026).
 // Dipakai listing/search/genre/year. Poster diambil dari featured media
 // (batch /wp/v2/media), genre dari nama kategori (batch /wp/v2/categories).
 //
@@ -11,6 +12,11 @@
 //   halaman parkir ParkLogic (router mengembalikan landing page parkir,
 //   bukan video); tidak ada voe/server lain di halaman detail. /play
 //   untuk judul idlix-only akan 404 seperti judul tanpa player lainnya.
+// - zonafilm: LISTING SAJA. /play BELUM TERBUKTI — semua server videonya
+//   terhalang dari IP server (streamtape 500, playmogo/vikingfile
+//   Turnstile captcha, filespayouts redirect, fpgo 403, gofile premium).
+//   Jalur /play paling menjanjikan: byselapuix via resolver byse yang
+//   sudah ada — BELUM dites. /play judul zonafilm-only akan 404 dulu.
 "use strict";
 const { ambil } = require("../fetcher");
 
@@ -18,6 +24,7 @@ function wpBases() {
     const defs = [
         { name: "lk21official", env: "LK21_BASE_MOVIE_3" },
         { name: "idlix", env: "LK21_BASE_MOVIE_4" },
+        { name: "zonafilm", env: "LK21_BASE_MOVIE_5" },
     ];
     const out = [];
     for (const d of defs) {
