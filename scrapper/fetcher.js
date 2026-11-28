@@ -23,6 +23,17 @@ try {
     }
 } catch (e) { daftarProxy = []; }
 
+/* Samarkan URL proxy di pesan error — URL proxy berisi kredensial
+   (http://user:pass@host:port) dan TIDAK BOLEH bocor ke respons API.
+   Tampilkan hanya host:port (tanpa userinfo). */
+function maskProxy(proxy) {
+    if (!proxy) return "direct";
+    try {
+        const u = new URL(proxy);
+        return u.host;
+    } catch (e) { return "proxy"; }
+}
+
 /* Urutkan acak supaya tiap request mencoba kombinasi proxy berbeda */
 function acak(arr) {
     const a = arr.slice();
@@ -105,7 +116,7 @@ async function ambil(url) {
                     reject(e);
                 } else {
                     gagal++;
-                    catat.push((proxy || "direct") + "=" + r.status);
+                    catat.push(maskProxy(proxy) + "=" + r.status);
                     if (gagal === total) {
                         const e = new Error("Semua jalur gagal (" + catat.join(",") + ") untuk " + url);
                         e.status = 502;

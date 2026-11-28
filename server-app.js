@@ -72,20 +72,30 @@ async function sharerHls(slug) {
 // Token vidara dibuat fresh tiap /api/stream; /play memanggilnya saat request
 // sehingga URL yang dikembalikan ke frontend masih baru.
 async function vidaraHls(filecode) {
-    const resp = await fetch("https://vidara.to/api/stream", {
-        signal: AbortSignal.timeout(10000),
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Referer": "https://vidara.to/e/" + filecode,
-            "User-Agent": "Mozilla/5.0"
-        },
-        body: JSON.stringify({ filecode: filecode, device: "web", codecs: [] })
-    });
-    const j = await resp.json();
-    if (j && j.streaming_url && /\.m3u8/.test(j.streaming_url)) {
-        allowDynamicHost(j.streaming_url);
-        return j.streaming_url;
+    // vidara API kadang gagal transient ("fetch failed") — coba ulang 3x
+    // sebelum menyerah (terbukti 28 Nov: percobaan ke-1 gagal, ke-2 berhasil).
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            const resp = await fetch("https://vidara.to/api/stream", {
+                signal: AbortSignal.timeout(10000),
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Referer": "https://vidara.to/e/" + filecode,
+                    "User-Agent": "Mozilla/5.0"
+                },
+                body: JSON.stringify({ filecode: filecode, device: "web", codecs: [] })
+            });
+            const j = await resp.json();
+            if (j && j.streaming_url && /\.m3u8/.test(j.streaming_url)) {
+                allowDynamicHost(j.streaming_url);
+                return j.streaming_url;
+            }
+            return null;
+        } catch (e) {
+            if (attempt === 3) return null;
+            await new Promise(r => setTimeout(r, 800));
+        }
     }
     return null;
 }
@@ -116,6 +126,63 @@ async function episodeHls(slug) {
                 headers: {
                     "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
                     "Referer": base + "eps/" + slug + "/",
+                    "User-Agent": "Mozilla/5.0"
+                },
+                body: "action=muvipro_player_content&tab=" + encodeURIComponent(tab) + "&post_id=" + encodeURIComponent(pid)
+            });
+            const frag = await ajax.text();
+            const $f = cheerio.load(frag);
+            let src = $f("iframe").attr("src") || "";
+            if (!src) {
+                const m0 = /https?:\/\/[^"'\s<>]+/i.exec(frag);
+                if (m0) src = m0[0];
+            }
+            if (!src) continue;
+            const vm = /vidara\.to\/e\/([A-Za-z0-9]+)/.exec(src);
+            if (vm) {
+                const file = await vidaraHls(vm[1]);
+                if (file) return { file: file, title: title, poster: poster };
+            }
+            // morencius.com: embed ter-obfuscate, belum didukung — lanjut tab berikut
+        } catch (e) { /* coba tab berikut */ }
+    }
+    return null;
+}
+
+// Film lk21asia (tema GMR/muvipro): halaman /<slug>/ -> post_id + tab player ->
+// admin-ajax muvipro_player_content -> iframe vidara.to -> /api/stream -> m3u8.
+// Sama seperti episodeHls, tapi untuk halaman FILM (bukan /eps/). Halaman film
+// lk21asia saat ini TIDAK punya iframe#main-player (tema lama mati), jadi
+// jalur ini adalah resolver utama film. Mengembalikan null bila halaman 404,
+// film tidak punya player muvipro, atau vidara gagal setelah retry.
+// Timeout 8 dtk per fetch (anggaran fail-fast /play 15 dtk).
+async function movieMuvipro(slug) {
+    const base = process.env.LK21_BASE_MOVIE || "";
+    const pageRes = await fetch(base + slug + "/", {
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": "Mozilla/5.0", "Referer": base }
+    });
+    if (!pageRes.ok) return null;
+    const html = await pageRes.text();
+    const $ = cheerio.load(html);
+    const title = $("h1.entry-title").first().text().trim() || $("h1").first().text().trim() || slug;
+    const poster = $("meta[property=\"og:image\"]").attr("content") || null;
+    const pid = ($("#muvipro_player_content_id").attr("data-id") || "").trim();
+    if (!pid) return null;
+    const tabs = [];
+    $("ul.muvipro-player-tabs a").each((i, el) => {
+        const href = $(el).attr("href") || "";
+        if (href.startsWith("#")) tabs.push(href.slice(1));
+    });
+    if (!tabs.length) tabs.push("p1");
+    for (const tab of tabs) {
+        try {
+            const ajax = await fetch(base + "wp-admin/admin-ajax.php", {
+                signal: AbortSignal.timeout(8000),
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                    "Referer": base + slug + "/",
                     "User-Agent": "Mozilla/5.0"
                 },
                 body: "action=muvipro_player_content&tab=" + encodeURIComponent(tab) + "&post_id=" + encodeURIComponent(pid)
@@ -196,6 +263,15 @@ async function resolveMoviePlay(slug) {
                 }
             } catch (e) { /* lanjut ke jalur lama */ }
         }
+        // Film lk21asia (tema muvipro): halaman film -> admin-ajax -> vidara -> m3u8.
+        // Resolver utama film saat ini (halaman film tidak punya iframe#main-player).
+        try {
+            const mv = await movieMuvipro(slug);
+            if (mv && mv.file) {
+                warmPlayCache(mv.file); // head start: panaskan segmen sebelum player minta
+                return { code: 200, body: { status: true, title: mv.title || slug, poster: mv.poster || null, hls: hlsUrl(mv.file), direct: mv.file } };
+            }
+        } catch (e) { /* lanjut ke jalur berikut */ }
         // Coba film dulu (tv12), lalu series (tv9) — katalog mencampur keduanya.
         // Multi-source: kedua base film (lk21asia + layarkaca21.city) + base series.
         // Semua base diambil PARALEL (bukan satu-satu): satu ambil() bisa
@@ -530,6 +606,19 @@ app.get("/movies/:slug/stream", async (req, res) => {
             vidaraErr = e.message;
         }
         if (!stream || !stream.stream || stream.stream.length === 0) {
+            // Film lk21asia (tema muvipro): halaman film tidak punya iframe,
+            // jadi streamMovies selalu kosong — coba resolver muvipro dulu.
+            try {
+                const mv = await movieMuvipro(req.params.slug);
+                if (mv && mv.file) {
+                    warmPlayCache(mv.file);
+                    return res.json({ status: true, developers: Developers, result: {
+                        slug: req.params.slug, provider: "muvipro",
+                        title: mv.title || req.params.slug, poster: mv.poster || null,
+                        hls: hlsUrl(mv.file), direct: mv.file
+                    }});
+                }
+            } catch (e) { /* lanjut ke gdframe */ }
             // FALLBACK gdframe/sharer (resolver alternatif, host cepat)
             try {
                 const g = await gdframeResolve(req.params.slug);
