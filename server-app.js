@@ -3,6 +3,7 @@ const cheerio = require("cheerio");
 const { ambil } = require("./scrapper/fetcher");
 const { gdframeResolve } = require("./scrapper/gdframe");
 const { byseResolve } = require("./scrapper/movies/byse");
+const { byseHls } = require("./scrapper/movies/byselapuix");
 const { movieBases } = require("./scrapper/bases");
 const cors = require("cors");
 const morgan = require("morgan");
@@ -353,6 +354,17 @@ async function resolveMoviePlay(slug) {
                     } catch (e2) { /* jatuh ke 404 di bawah */ }
                     return { code: 404, body: { status: false, message: "Player embed bysesayeveum — resolver belum tersedia", embed: bysesayeveumEmbed } };
                 }
+                // Jalur byselapuix (zonafilm.shop, tanpa PoW): API langsung +
+                // AES-GCM key_parts[version]+key_parts[31-version]. Resolver
+                // resolve fresh tiap request (token HLS expire 15 menit) —
+                // TANPA cache hasil (cache maks aman ~10 menit, dihindari).
+                try {
+                    const bl = await byseHls(slug, m2 => console.log(m2));
+                    if (bl && bl.file) {
+                        warmPlayCache(bl.file);
+                        return { code: 200, body: { status: true, title: bl.title || slug, poster: bl.poster || null, hls: hlsUrl(bl.file), direct: bl.file, provider: "byselapuix", expires_at: bl.expiresAt || undefined } };
+                    }
+                } catch (e3) { /* jatuh ke 404 di bawah */ }
                 return { code: 404, body: { status: false, message: "Player tidak ditemukan" } };
             }
         }
