@@ -256,7 +256,17 @@ async function resolveMoviePlay(slug) {
         // Episode series (lk21asia): player muvipro AJAX -> vidara.to -> m3u8
         if (/-season-\d+-episode-\d+(?:-\d{4})?$/i.test(slug)) {
             try {
-                const ep = await episodeHls(slug);
+                let ep = await episodeHls(slug);
+                // Kalau episode ini belum ada playernya (mis. ep1), coba episode
+                // berikutnya dari season yang sama (maks 2x) — seri tetap bisa diputar.
+                if (!ep || !ep.file) {
+                    const mEp = /^(.*-season-(\d+)-episode-)(\d+)((?:-\d{4})?)$/i.exec(slug);
+                    if (mEp) {
+                        for (let k = 1; k <= 2 && (!ep || !ep.file); k++) {
+                            try { ep = await episodeHls(`${mEp[1]}${parseInt(mEp[3], 10) + k}${mEp[4]}`); } catch (e) { /* coba episode berikut */ }
+                        }
+                    }
+                }
                 if (ep && ep.file) {
                     warmPlayCache(ep.file); // head start: panaskan segmen sebelum player minta
                     return { code: 200, body: { status: true, title: ep.title || slug, poster: ep.poster || null, hls: hlsUrl(ep.file), direct: ep.file } };
