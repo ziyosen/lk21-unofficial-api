@@ -229,9 +229,21 @@ const https = require("https");
 // (>45 dtk, 0 byte) karena rantai sharer/ambil/gdframe/videonode tidak punya
 // batas keseluruhan. resolveMoviePlay mengembalikan { code, body } (tidak
 // menulis res langsung) supaya race deadline bisa menang tanpa double-response.
-const PLAY_DEADLINE_MS = 15000;
+const PLAY_DEADLINE_MS = 25000; // jalur byselapuix (zonafilm) jalan setelah bases paralel + gdframe — butuh ruang
 async function resolveMoviePlay(slug) {
     try {
+        // Jalur byselapuix (zonafilm.shop, tanpa PoW) PALING AWAL: lookup murah
+        // (1 fetch halaman zonafilm; gagal cepat utk slug non-zonafilm) dan
+        // menutup katalog zonafilm yang tidak punya player di base lain.
+        // Resolver resolve fresh tiap request (token HLS expire 15 menit) —
+        // TANPA cache hasil (cache maks aman ~10 menit, dihindari).
+        try {
+            const bl = await byseHls(slug, m0 => console.log(m0));
+            if (bl && bl.file) {
+                warmPlayCache(bl.file);
+                return { code: 200, body: { status: true, title: bl.title || slug, poster: bl.poster || null, hls: hlsUrl(bl.file), direct: bl.file, provider: "byselapuix", expires_at: bl.expiresAt || undefined } };
+            }
+        } catch (e00) { /* lanjut ke jalur berikut */ }
         // Jalur baru: sharer.link 540.php -> m3u8 langsung (tema baru tanpa iframe#main-player)
         try {
             const sh = await sharerHls(slug);
@@ -311,16 +323,10 @@ async function resolveMoviePlay(slug) {
                     if (/(bysesayeveum\.com|n1mwq\.org)\/e\//.test(s2)) { bysesayeveumEmbed = s2; bysesayeveumParent = bases[bi] + slug; }
                 });
             }
-            // Zonafilm (muvipro): video ada di daftar download <a href>, bukan iframe.
-            // byselapuix.com/d/<code> -> tulis ulang ke /e/<code> (resolver byse yang
-            // sama; TERBUKTI 28 Nov: /e/do3qbxllhw58 -> HLS 1080p SprintCDN, segmen .ts 200).
-            if (!bysesayeveumEmbed) {
-                $p("a").each((i, el) => {
-                    const h = $p(el).attr("href") || "";
-                    const m2 = /^https?:\/\/byselapuix\.com\/d\/([A-Za-z0-9_-]+)/.exec(h);
-                    if (m2) { bysesayeveumEmbed = "https://byselapuix.com/e/" + m2[1]; bysesayeveumParent = bases[bi] + slug; return false; }
-                });
-            }
+            // Zonafilm (muvipro): video ada di daftar download <a href>, bukan
+            // iframe. Kode byselapuix.com/d/<code> DIRESOLVE lewat jalur
+            // byselapuix (scrapper/movies/byselapuix.js, tanpa PoW) di fallback
+            // bawah — BUKAN lewat resolver bysesayeveum (API/PoW beda platform).
         }
         // Series tanpa episode: coba episode pertama (slug-season-1-episode-1-tahun)
         if (!iframe) {
@@ -354,17 +360,6 @@ async function resolveMoviePlay(slug) {
                     } catch (e2) { /* jatuh ke 404 di bawah */ }
                     return { code: 404, body: { status: false, message: "Player embed bysesayeveum — resolver belum tersedia", embed: bysesayeveumEmbed } };
                 }
-                // Jalur byselapuix (zonafilm.shop, tanpa PoW): API langsung +
-                // AES-GCM key_parts[version]+key_parts[31-version]. Resolver
-                // resolve fresh tiap request (token HLS expire 15 menit) —
-                // TANPA cache hasil (cache maks aman ~10 menit, dihindari).
-                try {
-                    const bl = await byseHls(slug, m2 => console.log(m2));
-                    if (bl && bl.file) {
-                        warmPlayCache(bl.file);
-                        return { code: 200, body: { status: true, title: bl.title || slug, poster: bl.poster || null, hls: hlsUrl(bl.file), direct: bl.file, provider: "byselapuix", expires_at: bl.expiresAt || undefined } };
-                    }
-                } catch (e3) { /* jatuh ke 404 di bawah */ }
                 return { code: 404, body: { status: false, message: "Player tidak ditemukan" } };
             }
         }
