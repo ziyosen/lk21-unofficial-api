@@ -495,7 +495,7 @@ app.get("/img", async (req, res) => {
     const u = req.query.u;
     if (!u || !/^https?:\/\//.test(u)) return res.status(400).end("bad url");
     let h; try { h = new URL(u).hostname; } catch { return res.status(400).end("bad url"); }
-    if (!/(^|\.)lk21asia\.com$|(^|\.)layarkaca21\.city$|(^|\.)idlix\.bar$|(^|\.)image\.tmdb\.org$|^159\.223\.68\.21$/.test(h)) return res.status(403).end("host tidak diizinkan");
+    if (!/(^|\.)lk21asia\.com$|(^|\.)layarkaca21\.city$|(^|\.)idlix\.bar$|(^|\.)lk21official\.cloud$|(^|\.)onty\.website$|(^|\.)img\.onty\.website$|(^|\.)poster\.assetsy\.de$|(^|\.)rts\.gdn$|(^|\.)image\.tmdb\.org$|^159\.223\.68\.21$/.test(h)) return res.status(403).end("host tidak diizinkan");
     try {
         const r = await fetch(u, { signal: AbortSignal.timeout(20000), headers: { "User-Agent": "Mozilla/5.0", "Referer": new URL(u).origin + "/" } });
         if (!r.ok) return res.status(502).end("upstream " + r.status);
