@@ -7,7 +7,9 @@ const { ambil } = require("./fetcher");
 const { parseListing } = require("./listing");
 
 function movieBases() {
-    const bases = [process.env.LK21_BASE_MOVIE, process.env.LK21_BASE_MOVIE_2].filter(Boolean);
+    // Semua base film (28 Nov 2026): 1 lk21asia + 2 layarkaca21.city + 3 lk21official
+    // + 4 idlix + 5 zonafilm. /play butuh semuanya (zonafilm = byselapuix).
+    const bases = [process.env.LK21_BASE_MOVIE, process.env.LK21_BASE_MOVIE_2, process.env.LK21_BASE_MOVIE_3, process.env.LK21_BASE_MOVIE_4, process.env.LK21_BASE_MOVIE_5].filter(Boolean);
     return [...new Set(bases.map((b) => (b.endsWith("/") ? b : b + "/")))];
 }
 

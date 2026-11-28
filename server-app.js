@@ -310,6 +310,16 @@ async function resolveMoviePlay(slug) {
                     if (/(bysesayeveum\.com|n1mwq\.org)\/e\//.test(s2)) { bysesayeveumEmbed = s2; bysesayeveumParent = bases[bi] + slug; }
                 });
             }
+            // Zonafilm (muvipro): video ada di daftar download <a href>, bukan iframe.
+            // byselapuix.com/d/<code> -> tulis ulang ke /e/<code> (resolver byse yang
+            // sama; TERBUKTI 28 Nov: /e/do3qbxllhw58 -> HLS 1080p SprintCDN, segmen .ts 200).
+            if (!bysesayeveumEmbed) {
+                $p("a").each((i, el) => {
+                    const h = $p(el).attr("href") || "";
+                    const m2 = /^https?:\/\/byselapuix\.com\/d\/([A-Za-z0-9_-]+)/.exec(h);
+                    if (m2) { bysesayeveumEmbed = "https://byselapuix.com/e/" + m2[1]; bysesayeveumParent = bases[bi] + slug; return false; }
+                });
+            }
         }
         // Series tanpa episode: coba episode pertama (slug-season-1-episode-1-tahun)
         if (!iframe) {
@@ -448,8 +458,8 @@ function segContentType(ctUp) {
 async function segPrefetch(url) {
     if (segCacheGet(url) || segInflight.has(url)) return;
     let h; try { h = new URL(url).hostname; } catch { return; }
-    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)stream\d+\.online$|(^|\.)gdriveplayer\.to$|(^|\.)owphbf24\.com$/.test(h) && !dynamicHostAllowed(h)) return;
-    const ref = (/owphbf24\.com$/.test(h)) ? "https://layarkaca21.city/" : (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
+    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)stream\d+\.online$|(^|\.)gdriveplayer\.to$|(^|\.)owphbf24\.com$|(^|\.)r66nv9ed\.com$/.test(h) && !dynamicHostAllowed(h)) return;
+    const ref = (/(owphbf24|r66nv9ed)\.com$/.test(h)) ? "https://layarkaca21.city/" : (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
     segInflight.add(url);
     try {
         const r = await fetch(url, { signal: AbortSignal.timeout(30000), headers: { "User-Agent": "Mozilla/5.0", "Referer": ref } });
@@ -671,10 +681,11 @@ app.get("/movies/:slug/stream", async (req, res) => {
         // Byse: kalau ada embed bysesayeveum di daftar stream (layarkaca21.city),
         // resolve jadi HLS dan lampirkan (daftar stream tetap dipertahankan).
         try {
-            const byseItem = (stream.stream || []).find((s) => s && s.href && /(bysesayeveum\.com|n1mwq\.org)\/e\//.test(s.href));
+            const byseItem = (stream.stream || []).find((s) => s && s.href && (/(bysesayeveum\.com|n1mwq\.org)\/e\//.test(s.href) || /^https?:\/\/byselapuix\.com\/d\//.test(s.href)));
             if (byseItem) {
                 const parent = (process.env.LK21_BASE_MOVIE_2 || process.env.LK21_BASE_MOVIE || "") + req.params.slug;
-                const byse = await byseResolve(byseItem.href, parent);
+                const byseHref = byseItem.href.replace(/^https?:\/\/byselapuix\.com\/d\//, "https://byselapuix.com/e/");
+                const byse = await byseResolve(byseHref, parent);
                 if (byse && byse.hls) {
                     stream.hls = hlsUrl(byse.hls);
                     stream.hls_final = byse.hls;
