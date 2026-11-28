@@ -318,6 +318,7 @@ async function resolveMoviePlay(slug) {
         if (!iframe) {
             try {
                 const g = await gdframeResolve(slug);
+                warmPlayCache(g.hlsFinal); // daftarkan host segmen gdriveplayer (fix stall gdframe)
                 return { code: 200, body: { status: true, title: slug, poster: null, hls: hlsUrl(g.hlsFinal), provider: "gdframe", hls_final: g.hlsFinal } };
             } catch (e) {
                 // Jalur byse (layarkaca21.city -> embed bysesayeveum.com):
@@ -437,7 +438,7 @@ function segContentType(ctUp) {
 async function segPrefetch(url) {
     if (segCacheGet(url) || segInflight.has(url)) return;
     let h; try { h = new URL(url).hostname; } catch { return; }
-    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)gdriveplayer\.to$|(^|\.)owphbf24\.com$/.test(h) && !dynamicHostAllowed(h)) return;
+    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)stream\d+\.online$|(^|\.)gdriveplayer\.to$|(^|\.)owphbf24\.com$/.test(h) && !dynamicHostAllowed(h)) return;
     const ref = (/owphbf24\.com$/.test(h)) ? "https://layarkaca21.city/" : (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
     segInflight.add(url);
     try {
@@ -493,7 +494,7 @@ app.get("/hls", async (req, res) => {
     let h; try { h = new URL(u).hostname; } catch { return res.status(400).end("bad url"); }
     // CDN rotasi sumber memakai pola <hewan>.<brand>.xyz (duck/bunny/cat/... × qornexia/blaytoro/...)
     // + byse/SprintCDN: edge*.sprintcdn.owphbf24.com (resolver bysesayeveum, HLS 1080p).
-    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)gdriveplayer\.to$|(^|\.)owphbf24\.com$/.test(h) && !dynamicHostAllowed(h)) return res.status(403).end("host tidak diizinkan");
+    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)stream\d+\.online$|(^|\.)gdriveplayer\.to$|(^|\.)owphbf24\.com$/.test(h) && !dynamicHostAllowed(h)) return res.status(403).end("host tidak diizinkan");
     const ref = (/owphbf24\.com$/.test(h)) ? "https://layarkaca21.city/" : (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
     try {
         const r = await fetch(u, { signal: AbortSignal.timeout(30000), headers: { "User-Agent": "Mozilla/5.0", "Referer": ref } });
@@ -622,6 +623,7 @@ app.get("/movies/:slug/stream", async (req, res) => {
             // FALLBACK gdframe/sharer (resolver alternatif, host cepat)
             try {
                 const g = await gdframeResolve(req.params.slug);
+                warmPlayCache(g.hlsFinal); // daftarkan host segmen gdriveplayer (fix stall gdframe)
                 return res.json({ status: true, developers: Developers, result: {
                     slug: req.params.slug, provider: "gdframe",
                     title: req.params.slug, poster: null,
