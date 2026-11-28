@@ -2,6 +2,7 @@ const express = require("express");
 const cheerio = require("cheerio");
 const { ambil } = require("./scrapper/fetcher");
 const { gdframeResolve } = require("./scrapper/gdframe");
+const { byseResolve } = require("./scrapper/movies/byse");
 const { movieBases } = require("./scrapper/bases");
 const cors = require("cors");
 const morgan = require("morgan");
@@ -201,24 +202,26 @@ async function resolveMoviePlay(slug) {
         // ~12 dtk kalau proxy menggantung — berurutan bisa 3x lipat.
         let iframe = null;
         let bysesayeveumEmbed = null;
+        let bysesayeveumParent = null;
         const bases = [...movieBases(), process.env.LK21_BASE_SERIES].filter(Boolean);
         const settled = await Promise.allSettled(bases.map(async (base) => {
             const page = await ambil(`${base}${slug}`);
             return cheerio.load(page.data);
         }));
-        for (const s of settled) {
+        for (let bi = 0; bi < settled.length; bi++) {
+            const s = settled[bi];
             if (s.status !== "fulfilled") continue;
             const $p = s.value;
             if (!iframe) {
                 const src = $p("iframe#main-player").attr("src");
                 if (src && /\/iframe3\/[a-z0-9]+\/[A-Za-z0-9_-]+/.test(src)) iframe = src;
             }
-            // Embed lain (layarkaca21.city -> bysesayeveum.com): belum ada resolver
-            // (tugas terpisah) — dicatat agar pesan gagalnya jelas, bukan "tidak ditemukan".
+            // Embed lain (layarkaca21.city -> bysesayeveum.com, keluarga "byse"):
+            // dicatat + parent-nya (URL detail base itu) untuk header embed.
             if (!bysesayeveumEmbed) {
                 $p("iframe").each((i, el) => {
                     const s2 = $p(el).attr("src") || "";
-                    if (/bysesayeveum\.com\/e\//.test(s2)) bysesayeveumEmbed = s2;
+                    if (/(bysesayeveum\.com|n1mwq\.org)\/e\//.test(s2)) { bysesayeveumEmbed = s2; bysesayeveumParent = bases[bi] + slug; }
                 });
             }
         }
@@ -241,7 +244,16 @@ async function resolveMoviePlay(slug) {
                 const g = await gdframeResolve(slug);
                 return { code: 200, body: { status: true, title: slug, poster: null, hls: hlsUrl(g.hlsFinal), provider: "gdframe", hls_final: g.hlsFinal } };
             } catch (e) {
+                // Jalur byse (layarkaca21.city -> embed bysesayeveum.com):
+                // resolver PoW + AES-GCM -> HLS 1080p. Gagal -> 404 jelas.
                 if (bysesayeveumEmbed) {
+                    try {
+                        const byse = await byseResolve(bysesayeveumEmbed, bysesayeveumParent);
+                        if (byse && byse.hls) {
+                            warmPlayCache(byse.hls); // head start: panaskan segmen
+                            return { code: 200, body: { status: true, title: slug, poster: null, hls: hlsUrl(byse.hls), direct: byse.hls, provider: "byse" } };
+                        }
+                    } catch (e2) { /* jatuh ke 404 di bawah */ }
                     return { code: 404, body: { status: false, message: "Player embed bysesayeveum — resolver belum tersedia", embed: bysesayeveumEmbed } };
                 }
                 return { code: 404, body: { status: false, message: "Player tidak ditemukan" } };
@@ -349,8 +361,8 @@ function segContentType(ctUp) {
 async function segPrefetch(url) {
     if (segCacheGet(url) || segInflight.has(url)) return;
     let h; try { h = new URL(url).hostname; } catch { return; }
-    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)gdriveplayer\.to$/.test(h) && !dynamicHostAllowed(h)) return;
-    const ref = (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
+    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)gdriveplayer\.to$|(^|\.)owphbf24\.com$/.test(h) && !dynamicHostAllowed(h)) return;
+    const ref = (/owphbf24\.com$/.test(h)) ? "https://layarkaca21.city/" : (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
     segInflight.add(url);
     try {
         const r = await fetch(url, { signal: AbortSignal.timeout(30000), headers: { "User-Agent": "Mozilla/5.0", "Referer": ref } });
@@ -373,7 +385,7 @@ function segWarmAhead(list, idx, n) {
 async function warmPlayCache(fileUrl) {
     try {
         let h; try { h = new URL(fileUrl).hostname; } catch { return; }
-        const ref = (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
+        const ref = (/owphbf24\.com$/.test(h)) ? "https://layarkaca21.city/" : (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
         const r = await fetch(fileUrl, { signal: AbortSignal.timeout(30000), headers: { "User-Agent": "Mozilla/5.0", "Referer": ref } });
         if (!r.ok) return;
         const txt = await r.text();
@@ -404,8 +416,9 @@ app.get("/hls", async (req, res) => {
     // Anti-SSRF: hanya izinkan host video yang dipakai player (review sonnet-4.5)
     let h; try { h = new URL(u).hostname; } catch { return res.status(400).end("bad url"); }
     // CDN rotasi sumber memakai pola <hewan>.<brand>.xyz (duck/bunny/cat/... × qornexia/blaytoro/...)
-    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)gdriveplayer\.to$/.test(h) && !dynamicHostAllowed(h)) return res.status(403).end("host tidak diizinkan");
-    const ref = (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
+    // + byse/SprintCDN: edge*.sprintcdn.owphbf24.com (resolver bysesayeveum, HLS 1080p).
+    if (!/(^|\.)playcdn\.de$|(^|\.)videonode\.de$|(^|\.)seneng\.store$|(^|\.)s1q2105\.com$|^esse\.[a-z0-9-]+\.[a-z]+$|^[a-z]+\.[a-z]+\.xyz$|(^|\.)stream121\.space$|(^|\.)gdriveplayer\.to$|(^|\.)owphbf24\.com$/.test(h) && !dynamicHostAllowed(h)) return res.status(403).end("host tidak diizinkan");
+    const ref = (/owphbf24\.com$/.test(h)) ? "https://layarkaca21.city/" : (/seneng\.store$|^esse\./.test(h)) ? "https://sharer.link/" : (/s1q2105\.com$/.test(h) ? "https://vidara.to/" : (/stream121\.space$/.test(h) ? "https://gdriveplayer.to/" : "https://playcdn.de/"));
     try {
         const r = await fetch(u, { signal: AbortSignal.timeout(30000), headers: { "User-Agent": "Mozilla/5.0", "Referer": ref } });
         const ct = r.headers.get("content-type") || "";
@@ -529,6 +542,20 @@ app.get("/movies/:slug/stream", async (req, res) => {
                 return res.status(404).json({ status: false, developers: Developers, message: "Movie not found (vidara: " + (vidaraErr || (stream ? "stream kosong" : "kosong") ) + " | gdframe: " + e.message + ")" });
             }
         }
+        // Byse: kalau ada embed bysesayeveum di daftar stream (layarkaca21.city),
+        // resolve jadi HLS dan lampirkan (daftar stream tetap dipertahankan).
+        try {
+            const byseItem = (stream.stream || []).find((s) => s && s.href && /(bysesayeveum\.com|n1mwq\.org)\/e\//.test(s.href));
+            if (byseItem) {
+                const parent = (process.env.LK21_BASE_MOVIE_2 || process.env.LK21_BASE_MOVIE || "") + req.params.slug;
+                const byse = await byseResolve(byseItem.href, parent);
+                if (byse && byse.hls) {
+                    stream.hls = hlsUrl(byse.hls);
+                    stream.hls_final = byse.hls;
+                    stream.provider = "byse";
+                }
+            }
+        } catch (e) { /* byse gagal — biarkan daftar stream apa adanya */ }
         res.json({ status: true, developers: Developers, result: stream });
     } catch (err) {
         res.status(500).json({ status: false, developers: Developers, message: err.message });
