@@ -3,7 +3,6 @@ const cheerio = require("cheerio");
 const { ambil } = require("./scrapper/fetcher");
 const { gdframeResolve } = require("./scrapper/gdframe");
 const { byseResolve } = require("./scrapper/movies/byse");
-const { byseHls } = require("./scrapper/movies/byselapuix");
 const { movieBases } = require("./scrapper/bases");
 const cors = require("cors");
 const morgan = require("morgan");
@@ -229,21 +228,9 @@ const https = require("https");
 // (>45 dtk, 0 byte) karena rantai sharer/ambil/gdframe/videonode tidak punya
 // batas keseluruhan. resolveMoviePlay mengembalikan { code, body } (tidak
 // menulis res langsung) supaya race deadline bisa menang tanpa double-response.
-const PLAY_DEADLINE_MS = 25000; // jalur byselapuix (zonafilm) jalan setelah bases paralel + gdframe — butuh ruang
+const PLAY_DEADLINE_MS = 15000;
 async function resolveMoviePlay(slug) {
     try {
-        // Jalur byselapuix (zonafilm.shop, tanpa PoW) PALING AWAL: lookup murah
-        // (1 fetch halaman zonafilm; gagal cepat utk slug non-zonafilm) dan
-        // menutup katalog zonafilm yang tidak punya player di base lain.
-        // Resolver resolve fresh tiap request (token HLS expire 15 menit) —
-        // TANPA cache hasil (cache maks aman ~10 menit, dihindari).
-        try {
-            const bl = await byseHls(slug, m0 => console.log(m0));
-            if (bl && bl.file) {
-                warmPlayCache(bl.file);
-                return { code: 200, body: { status: true, title: bl.title || slug, poster: bl.poster || null, hls: hlsUrl(bl.file), direct: bl.file, provider: "byselapuix", expires_at: bl.expiresAt || undefined } };
-            }
-        } catch (e00) { /* lanjut ke jalur berikut */ }
         // Jalur baru: sharer.link 540.php -> m3u8 langsung (tema baru tanpa iframe#main-player)
         try {
             const sh = await sharerHls(slug);
@@ -323,10 +310,16 @@ async function resolveMoviePlay(slug) {
                     if (/(bysesayeveum\.com|n1mwq\.org)\/e\//.test(s2)) { bysesayeveumEmbed = s2; bysesayeveumParent = bases[bi] + slug; }
                 });
             }
-            // Zonafilm (muvipro): video ada di daftar download <a href>, bukan
-            // iframe. Kode byselapuix.com/d/<code> DIRESOLVE lewat jalur
-            // byselapuix (scrapper/movies/byselapuix.js, tanpa PoW) di fallback
-            // bawah — BUKAN lewat resolver bysesayeveum (API/PoW beda platform).
+            // Zonafilm (muvipro): video ada di daftar download <a href>, bukan iframe.
+            // byselapuix.com/d/<code> -> tulis ulang ke /e/<code> (resolver byse yang
+            // sama; TERBUKTI 28 Nov: /e/do3qbxllhw58 -> HLS 1080p SprintCDN, segmen .ts 200).
+            if (!bysesayeveumEmbed) {
+                $p("a").each((i, el) => {
+                    const h = $p(el).attr("href") || "";
+                    const m2 = /^https?:\/\/byselapuix\.com\/d\/([A-Za-z0-9_-]+)/.exec(h);
+                    if (m2) { bysesayeveumEmbed = "https://byselapuix.com/e/" + m2[1]; bysesayeveumParent = bases[bi] + slug; return false; }
+                });
+            }
         }
         // Series tanpa episode: coba episode pertama (slug-season-1-episode-1-tahun)
         if (!iframe) {
@@ -719,11 +712,32 @@ app.get("/search", async (req, res) => {
     }
 });
 
+
+// Cache listing (29 Nov 2026): /movies/latest dkk fetch live dari 5 sumber WP
+// (6-21 dtk) tiap request, jadi homepage memuat lama. Cache in-memory agar
+// pengunjung berikutnya langsung dapat. Katalog tidak berubah tiap detik.
+const __listingCache = new Map();
+function __cacheGet(key, ttlMs) {
+    const e = __listingCache.get(key);
+    if (!e) return null;
+    if (Date.now() - e.ts > ttlMs) { __listingCache.delete(key); return null; }
+    return e.val;
+}
+function __cacheSet(key, val) {
+    if (__listingCache.size > 200) __listingCache.clear();
+    __listingCache.set(key, { ts: Date.now(), val });
+}
+
 app.get("/movies/latest", async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
+        const ck = "latest:" + page;
+        const hit = __cacheGet(ck, 300000);
+        if (hit) return res.json(hit);
         const { total_pages, movies } = await latestMovies(page);
-        res.json({ status: true, developers: Developers, current_page: page, total_pages, results: movies });
+        const out = { status: true, developers: Developers, current_page: page, total_pages, results: movies };
+        __cacheSet(ck, out);
+        res.json(out);
     } catch (err) {
         res.status(500).json({ status: false, developers: Developers, message: err.message });
     }
@@ -731,8 +745,12 @@ app.get("/movies/latest", async (req, res) => {
 
 app.get("/movies/genres", async (_, res) => {
     try {
+        const hit = __cacheGet("genres", 600000);
+        if (hit) return res.json(hit);
         const genres = await getGenresMovies();
-        res.json({ status: true, developers: Developers, results: genres });
+        const out = { status: true, developers: Developers, results: genres };
+        __cacheSet("genres", out);
+        res.json(out);
     } catch (err) {
         res.status(500).json({ status: false, developers: Developers, message: err.message });
     }
@@ -740,8 +758,12 @@ app.get("/movies/genres", async (_, res) => {
 
 app.get("/movies/years", async (_, res) => {
     try {
+        const hit = __cacheGet("years", 600000);
+        if (hit) return res.json(hit);
         const years = await getYearsMovies();
-        res.json({ status: true, developers: Developers, results: years });
+        const out = { status: true, developers: Developers, results: years };
+        __cacheSet("years", out);
+        res.json(out);
     } catch (err) {
         res.status(500).json({ status: false, developers: Developers, message: err.message });
     }
@@ -749,8 +771,12 @@ app.get("/movies/years", async (_, res) => {
 
 app.get("/movies/countries", async (_, res) => {
     try {
+        const hit = __cacheGet("countries", 600000);
+        if (hit) return res.json(hit);
         const countries = await getCountriesMovies();
-        res.json({ status: true, developers: Developers, results: countries });
+        const out = { status: true, developers: Developers, results: countries };
+        __cacheSet("countries", out);
+        res.json(out);
     } catch (err) {
         res.status(500).json({ status: false, developers: Developers, message: err.message });
     }
